@@ -1,0 +1,59 @@
+name: Daily monitor refresh
+
+# Rebuilds the monitor from the upstream breadth-thrust-etf engine outputs.
+#
+# Timing: Mon-Fri 22:10 UTC. The engine's own daily mark-to-market runs at
+# 21:30 UTC, so by 22:10 the raw live_track.json / risk_overlay.json on the
+# engine's main branch are fresh. This job fetches those, recomputes the
+# monitor's analytics + benchmarks, validates freshness, bakes the dashboard,
+# and publishes to GitHub Pages.
+#
+# What it does NOT do: re-run the strategy. The monitor is a read-only consumer
+# of the engine's published outputs.
+
+on:
+  schedule:
+    - cron: '10 22 * * 1-5'   # Mon-Fri 22:10 UTC (early morning SGT)
+  workflow_dispatch:           # manual trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-monitor
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build dataset + bake dashboard
+        run: python scripts/pipeline.py
+
+      - name: Run tests
+        run: python -m pytest tests/ -q
+
+      - name: Commit refreshed output
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "Navigo Monitor Bot"
+          git add docs/
+          git diff --cached --quiet || git commit -m "Daily monitor refresh $(date -u +%Y-%m-%d)"
+          git push origin HEAD:main || echo "Nothing to push"

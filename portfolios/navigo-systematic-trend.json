@@ -1,0 +1,58 @@
+{
+  "id": "navigo-systematic-trend",
+  "name": "Navigo Systematic Trend",
+  "descriptor": "Systematic breadth- and trend-driven global ETF rotation",
+  "status": "paper",
+  "inception": "2018-11-08",
+  "rebalance": "Weekly (Friday)",
+  "base_currency": "USD",
+  "cost_assumption_bps": 5,
+  "source": {
+    "repo": "phuazz/breadth-thrust-etf",
+    "ref": "main",
+    "raw_base": "https://raw.githubusercontent.com/phuazz/breadth-thrust-etf/main/data",
+    "api_base": "https://api.github.com/repos/phuazz/breadth-thrust-etf",
+    "files": ["live_track.json", "multi_strategy.json", "risk_overlay.json", "holdings_prices_1y.json"],
+    "deployed_key": "blend_35_35_10_20_gated_eem_tilted",
+    "gated_key": "blend_35_35_10_20_gated",
+    "ungated_key": "blend_35_35_10_20"
+  },
+  "sleeves": {
+    "A": {"name": "US Sector Breadth", "key": "strategy_a", "alloc": 0.35, "alloc_tilt": 0.35, "color": "#2563eb", "desc": "US sector top-K breadth rotation (K=7); rotates into the strongest S&P 500 sectors by share of constituents above their 200-day moving average."},
+    "B": {"name": "Cross-Asset Trend", "key": "strategy_b", "alloc": 0.35, "alloc_tilt": 0.25, "color": "#1a8754", "desc": "Cross-asset trend rotation; holds the broad-market, regional and commodity sleeves that are above their 200-day moving average."},
+    "C": {"name": "Thematic Momentum", "key": "strategy_c", "alloc": 0.10, "alloc_tilt": 0.10, "color": "#b45309", "desc": "Thematic momentum rotation across cyber, clean energy, solar, battery and China-semiconductor baskets."},
+    "D": {"name": "Europe Sector Breadth", "key": "strategy_d", "alloc": 0.20, "alloc_tilt": 0.20, "color": "#7c3aed", "desc": "Europe (Stoxx 600) sector breadth rotation, mirroring sleeve A on the European sector universe."},
+    "TILT": {"name": "EM Tilt", "key": null, "alloc": 0.0, "alloc_tilt": 0.10, "color": "#0891b2", "desc": "EEM/SPY golden-cross tilt of 10% NAV, funded from sleeve B. Weak-evidence positional bet, not robust alpha."}
+  },
+  "benchmarks": {
+    "SPY": {"name": "S&P 500", "label": "S&P 500 (SPY)", "type": "yfinance", "ticker": "SPY", "color": "#8a8a82"},
+    "BAL6040": {"name": "60/40", "label": "60/40 (SPY/IEF)", "type": "blend", "components": {"SPY": 0.6, "IEF": 0.4}, "color": "#b0b0a8"}
+  },
+  "freshness": {
+    "price_bdays": 4,
+    "regime_bdays": 8,
+    "note": "Business-day lag budgets. The breadth/regime panel updates weekly (Saturdays), so its budget is wider than the daily price feed."
+  },
+  "etf_meta": {
+    "EEM":       {"name": "MSCI Emerging Markets",            "sleeve": "B", "assetClass": "Equity",      "geo": "Emerging",  "theme": "Broad EM",          "tradeAs": "EEM"},
+    "SOXX":      {"name": "iShares Semiconductor",            "sleeve": "A", "assetClass": "Equity",      "geo": "US",        "theme": "Semiconductors",    "tradeAs": "SOXX"},
+    "IUES":      {"name": "S&P 500 Energy",                   "sleeve": "A", "assetClass": "Equity",      "geo": "US",        "theme": "Energy",            "tradeAs": "XLE"},
+    "EXH1":      {"name": "Stoxx Europe 600 Oil & Gas",       "sleeve": "D", "assetClass": "Equity",      "geo": "Europe",    "theme": "Energy",            "tradeAs": "EXH1.DE"},
+    "IUSP":      {"name": "US REITs (FTSE EPRA NAREIT)",      "sleeve": "A", "assetClass": "Equity",      "geo": "US",        "theme": "Real Estate",       "tradeAs": "XLRE"},
+    "EXH9":      {"name": "Stoxx Europe 600 Utilities",       "sleeve": "D", "assetClass": "Equity",      "geo": "Europe",    "theme": "Utilities",         "tradeAs": "EXH9.DE"},
+    "EXV1":      {"name": "Stoxx Europe 600 Banks",           "sleeve": "D", "assetClass": "Equity",      "geo": "Europe",    "theme": "Banks",             "tradeAs": "EXV1.DE"},
+    "IUUS":      {"name": "S&P 500 Utilities",                "sleeve": "A", "assetClass": "Equity",      "geo": "US",        "theme": "Utilities",         "tradeAs": "XLU"},
+    "DBC":       {"name": "Broad Commodities Basket",         "sleeve": "B", "assetClass": "Commodities", "geo": "Global",    "theme": "Commodities",       "tradeAs": "DBC"},
+    "QQQ":       {"name": "NASDAQ-100",                       "sleeve": "B", "assetClass": "Equity",      "geo": "US",        "theme": "US Tech",           "tradeAs": "QQQ"},
+    "IJR":       {"name": "S&P SmallCap 600",                 "sleeve": "B", "assetClass": "Equity",      "geo": "US",        "theme": "US Small Cap",      "tradeAs": "IJR"},
+    "EWJ":       {"name": "MSCI Japan",                       "sleeve": "B", "assetClass": "Equity",      "geo": "Japan",     "theme": "Japan",             "tradeAs": "EWJ"},
+    "SPY":       {"name": "S&P 500 (US Large Cap)",           "sleeve": "B", "assetClass": "Equity",      "geo": "US",        "theme": "US Large Cap",      "tradeAs": "SPY"},
+    "EFA":       {"name": "MSCI EAFE (Intl Developed)",       "sleeve": "B", "assetClass": "Equity",      "geo": "DM ex-US",  "theme": "Intl Developed",    "tradeAs": "EFA"},
+    "CIBR":      {"name": "First Trust Cybersecurity",        "sleeve": "C", "assetClass": "Equity",      "geo": "Global",    "theme": "Cybersecurity",     "tradeAs": "CIBR"},
+    "ICLN":      {"name": "iShares Global Clean Energy",      "sleeve": "C", "assetClass": "Equity",      "geo": "Global",    "theme": "Clean Energy",      "tradeAs": "ICLN"},
+    "TAN":       {"name": "Invesco Solar",                    "sleeve": "C", "assetClass": "Equity",      "geo": "Global",    "theme": "Solar",             "tradeAs": "TAN"},
+    "LIT":       {"name": "Global X Lithium & Battery Tech",  "sleeve": "C", "assetClass": "Equity",      "geo": "Global",    "theme": "Lithium / Battery", "tradeAs": "LIT"},
+    "159801.SZ": {"name": "Bosera CSI Chip (China Semis)",    "sleeve": "C", "assetClass": "Equity",      "geo": "China",     "theme": "China Semis",       "tradeAs": "159801.SZ"},
+    "SHY":       {"name": "iShares 1-3Y Treasury",           "sleeve": "CASH", "assetClass": "Fixed Income", "geo": "US",     "theme": "Defensive Cash",    "tradeAs": "SHY"}
+  }
+}

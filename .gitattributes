@@ -1,0 +1,4 @@
+# Normalise line endings to LF; the build pipeline and CI run on Linux.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

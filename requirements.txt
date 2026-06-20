@@ -1,0 +1,6 @@
+# Navigo Systematic Trend monitor — build pipeline dependencies
+pandas>=2.0
+numpy>=1.24
+yfinance>=0.2
+python-dateutil>=2.8
+requests>=2.28

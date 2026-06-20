@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Navigo Systematic Trend — Model Portfolio Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+<style>
+:root{
+  --bg:#fafaf8; --bg2:#ffffff; --bg3:#f5f5f0; --bg4:#eeeee8; --bg-hover:#f0f0ea;
+  --bd:#e2e0d8; --bd2:#d5d3ca; --bd-strong:#c0beb5;
+  --t1:#1a1a18; --t2:#5c5c56; --t3:#8a8a82; --t4:#b0b0a8;
+  --g:#1a8754; --g2:#22a366; --g-bg:rgba(26,135,84,0.07); --g-bg2:rgba(26,135,84,0.14);
+  --r:#c0392b; --r2:#e74c3c; --r-bg:rgba(192,57,43,0.07); --r-bg2:rgba(192,57,43,0.14);
+  --b:#2563eb; --b2:#3b82f6; --b-bg:rgba(37,99,235,0.06); --b-bg2:rgba(37,99,235,0.12);
+  --a:#b45309; --a-bg:rgba(180,83,9,0.07); --a-bg2:rgba(180,83,9,0.14);
+  --p:#7c3aed; --p-bg:rgba(124,58,237,0.06);
+  --c:#0891b2; --c-bg:rgba(8,145,178,0.06);
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'JetBrains Mono','SF Mono',Menlo,monospace;
+  --shadow-sm:0 1px 2px rgba(0,0,0,0.04);
+  --shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 6px rgba(0,0,0,0.05),0 2px 4px rgba(0,0,0,0.04);
+  --radius:8px; --radius-lg:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--t1);font-family:var(--sans);font-size:14px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;padding:0 22px 60px}
+.shell{max-width:1280px;margin:0 auto}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.pos{color:var(--g)} .neg{color:var(--r)} .muted{color:var(--t3)}
+a{color:var(--b);text-decoration:none}
+
+/* stale banner */
+.stale-banner{margin:16px 0 0;padding:12px 18px;border-radius:var(--radius);font-weight:600;font-size:13px;
+  display:flex;align-items:center;gap:10px}
+.stale-banner.warn{background:var(--a-bg2);color:var(--a);border:1px solid rgba(180,83,9,0.3)}
+.stale-banner.stale{background:var(--r-bg2);color:var(--r);border:1px solid rgba(192,57,43,0.35)}
+
+/* masthead */
+.masthead{padding:26px 0 20px;border-bottom:2px solid var(--t1);margin-bottom:22px;
+  display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px}
+.mh-left h1{font-family:var(--serif);font-size:34px;font-weight:400;letter-spacing:-0.4px;line-height:1.05}
+.mh-sub{color:var(--t2);font-size:14px;margin-top:4px;max-width:640px}
+.mh-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pill{padding:5px 11px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;
+  text-transform:uppercase;border:1px solid var(--bd2);background:var(--bg2);color:var(--t2);white-space:nowrap}
+.pill-paper{background:var(--a-bg);color:var(--a);border-color:rgba(180,83,9,0.3)}
+.pill-on{background:var(--g-bg);color:var(--g);border-color:rgba(26,135,84,0.3)}
+.pill-off{background:var(--r-bg);color:var(--r);border-color:rgba(192,57,43,0.3)}
+.pill-health-ok{background:var(--g-bg);color:var(--g);border-color:rgba(26,135,84,0.3)}
+.pill-health-warn{background:var(--a-bg);color:var(--a);border-color:rgba(180,83,9,0.3)}
+.pill-health-stale{background:var(--r-bg);color:var(--r);border-color:rgba(192,57,43,0.3)}
+
+/* KPI strip */
+.kpi-strip{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;background:var(--bd);
+  border:1px solid var(--bd);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:22px}
+.kpi{background:var(--bg2);padding:14px 16px;min-width:0}
+.kpi-label{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:5px}
+.kpi-val{font-size:21px;font-weight:700;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi-sub{font-size:11px;color:var(--t3);margin-top:3px}
+
+/* tab bar */
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:22px;overflow-x:auto;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tab-bar::-webkit-scrollbar{display:none}
+.tab{padding:11px 18px;font-size:13.5px;font-weight:600;color:var(--t3);cursor:pointer;border:none;
+  background:none;position:relative;white-space:nowrap;min-height:44px;letter-spacing:0.2px}
+.tab:hover{color:var(--t1)}
+.tab.active{color:var(--t1)}
+.tab.active::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:var(--t1)}
+
+/* cards */
+.card{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--radius-lg);
+  padding:20px;margin-bottom:18px;box-shadow:var(--shadow-sm)}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.card-title{font-size:15px;font-weight:700;letter-spacing:-0.2px}
+.card-note{font-size:12px;color:var(--t3)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.section-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--t3);font-weight:700;margin:6px 0 10px}
+
+/* filter buttons */
+.fbtn{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--bd);
+  background:var(--bg2);color:var(--t3);min-height:32px}
+.fbtn.active{background:var(--t1);color:var(--bg2);border-color:var(--t1)}
+.fbtn:hover:not(.active){border-color:var(--t2);color:var(--t2)}
+.fbtns{display:flex;gap:6px;flex-wrap:wrap}
+
+/* tables */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl thead th{padding:9px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.6px;
+  color:var(--t3);font-weight:700;border-bottom:2px solid var(--bd);background:var(--bg3);white-space:nowrap}
+.tbl tbody tr{border-bottom:1px solid var(--bd)}
+.tbl tbody tr:hover{background:var(--bg-hover)}
+.tbl tbody td{padding:9px 10px;vertical-align:middle}
+.tbl .r{text-align:right;font-variant-numeric:tabular-nums} .tbl .c{text-align:center}
+.tbl tr.sum{font-weight:700;background:var(--bg3)}
+.tbl .num{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+
+/* misc chips */
+.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.sl-chip{display:inline-block;padding:2px 7px;border-radius:5px;font-size:10.5px;font-weight:700;color:#fff}
+.bar-track{background:var(--bg4);border-radius:4px;height:8px;overflow:hidden;min-width:48px}
+.bar-fill{height:100%;border-radius:4px}
+.chart{width:100%}
+.footer{margin-top:30px;padding-top:18px;border-top:1px solid var(--bd);font-size:11.5px;color:var(--t3);line-height:1.6}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px}
+.kv .k{color:var(--t3)} .kv .v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.callout{background:var(--bg3);border-left:3px solid var(--bd-strong);padding:12px 16px;border-radius:6px;font-size:13px;color:var(--t2);line-height:1.6}
+.loading{padding:80px 20px;text-align:center;color:var(--t3);font-size:15px}
+
+@media(max-width:1100px){.kpi-strip{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+@media(max-width:560px){.kpi-strip{grid-template-columns:repeat(2,1fr)}body{padding:0 12px 50px}.mh-left h1{font-size:27px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div id="staleBanner" class="stale-banner" style="display:none"></div>
+  <div class="masthead">
+    <div class="mh-left">
+      <h1 id="mhTitle">Navigo Systematic Trend</h1>
+      <div class="mh-sub" id="mhSub">Systematic breadth- and trend-driven global ETF rotation</div>
+    </div>
+    <div class="mh-right" id="mhRight"></div>
+  </div>
+  <div class="kpi-strip" id="kpiStrip"></div>
+  <div class="tab-bar" id="tabBar"></div>
+  <div id="tabContent"></div>
+  <div class="footer" id="footer"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================ config + state ============================ */
+const DATA_FILE = 'data/portfolio-navigo-systematic-trend.json';
+let DS = null;
+const state = { tab:'overview', perfWindow:'SI', perfLog:false, attrHorizon:'1M', attrView:'sleeve' };
+
+const TABS = [
+  ['overview','Overview'], ['allocation','Allocation'], ['performance','Performance'],
+  ['attribution','Attribution'], ['risk','Risk & Regime'], ['signals','Signals'],
+  ['health','Data Health'], ['method','Methodology'],
+];
+const SLEEVE_COLORS = {A:'#2563eb',B:'#1a8754',C:'#b45309',D:'#7c3aed',TILT:'#0891b2',CASH:'#8a8a82'};
+
+/* ============================ formatting ============================ */
+const isNum = v => v!==null && v!==undefined && isFinite(v);
+function pct(v,d=1){ if(!isNum(v)) return '—'; let z=v*100; if(Math.abs(z)<Math.pow(10,-d)/2) z=0; return z.toFixed(d)+'%'; }
+function pctSigned(v,d=1){ if(!isNum(v)) return '—'; let z=v*100; if(Math.abs(z)<Math.pow(10,-d)/2) z=0; return (z>=0?'+':'')+z.toFixed(d)+'%'; }
+const num = (v,d=2) => isNum(v) ? v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
+const xfmt = (v,d=2) => isNum(v) ? v.toFixed(d)+'×' : '—';
+const signClass = v => !isNum(v) ? '' : v>0 ? 'pos' : v<0 ? 'neg' : '';
+const colored = (txt,v) => `<span class="${signClass(v)}">${txt}</span>`;
+function fmtDate(s){ if(!s) return '—'; const d=new Date(s+'T00:00:00'); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
+function fmtDateShort(s){ if(!s) return '—'; const d=new Date(s+'T00:00:00'); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}); }
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ============================ Plotly base ============================ */
+const PLOT_FONT = {family:'DM Sans',size:11,color:'#5c5c56'};
+function baseLayout(extra){
+  return Object.assign({
+    margin:{t:12,b:38,l:54,r:18}, paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+    font:PLOT_FONT, hovermode:'x unified', showlegend:false,
+    xaxis:{gridcolor:'#ededea',tickfont:{size:10},zeroline:false},
+    yaxis:{gridcolor:'#ededea',tickfont:{size:10,family:'JetBrains Mono'},zeroline:false},
+  }, extra||{});
+}
+const PLOT_CFG = {displayModeBar:false, responsive:true};
+function plot(el, traces, layout){ Plotly.react(el, traces, layout, PLOT_CFG); }
+
+/* ============================ data loading ============================ */
+async function bootstrap(){
+  try{
+    const resp = await fetch(DATA_FILE, {cache:'no-cache'});
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    DS = await resp.json();
+  }catch(e){
+    document.getElementById('tabContent').innerHTML =
+      `<div class="loading">Could not load <code>${DATA_FILE}</code>.<br><span class="muted">${esc(e.message)}</span><br><br>
+       Run <code>python scripts/pipeline.py</code> then serve from the project root or <code>docs/</code>.</div>`;
+    return;
+  }
+  renderMasthead(); renderKPIs(); renderStaleBanner(); renderTabBar(); renderFooter(); renderTab();
+}
+
+/* ============================ masthead / KPIs ============================ */
+function renderMasthead(){
+  const m=DS.meta, rg=DS.regime;
+  document.getElementById('mhTitle').textContent = m.name;
+  document.getElementById('mhSub').textContent = m.descriptor + ' · weekly-rebalanced · since '+fmtDate(m.inception);
+  const onoff = rg.state==='RISK_ON' ? 'on':'off';
+  const hl = DS.health.level;
+  document.getElementById('mhRight').innerHTML = [
+    `<span class="pill pill-paper" title="Paper / model portfolio — not live capital">● Paper model</span>`,
+    `<span class="pill pill-${onoff}" title="Breadth de-risk gate state">${rg.state==='RISK_ON'?'Risk-On':'Risk-Off'}</span>`,
+    `<span class="pill" title="Latest model NAV date">As of ${fmtDateShort(m.live_asOf||m.asOf)}</span>`,
+    `<span class="pill pill-health-${hl}" title="Data-integrity status">${hl==='ok'?'✓ Data OK':hl==='warn'?'⚠ Check data':'✕ Stale'}</span>`,
+  ].join('');
+}
+
+function kpiCard(label,val,sub,cls){
+  return `<div class="kpi"><div class="kpi-label">${label}</div><div class="kpi-val ${cls||''}">${val}</div><div class="kpi-sub">${sub||''}</div></div>`;
+}
+function renderKPIs(){
+  const s=DS.stats, rg=DS.regime, eq=DS.equity;
+  const navIdx = eq.live ? eq.live.equity[eq.live.equity.length-1] : eq.model[eq.model.length-1];
+  const pr=s.period_returns;
+  const html = [
+    kpiCard('NAV (base 100)', num(navIdx*100,1), eq.live?('live · '+fmtDateShort(DS.meta.live_asOf)):('as of '+fmtDateShort(s.end))),
+    kpiCard('YTD', pctSigned(pr.YTD), 'calendar', signClass(pr.YTD)),
+    kpiCard('1 Year', pctSigned(pr['1Y']), 'trailing', signClass(pr['1Y'])),
+    kpiCard('CAGR', pct(s.cagr), 'since inception'),
+    kpiCard('Ann. Vol', pct(s.ann_vol), 'daily, ×√252'),
+    kpiCard('Sharpe', num(s.sharpe,2), 'rf = 0'),
+    kpiCard('Max DD', pct(s.max_dd), 'now '+pct(s.current_dd), 'neg'),
+    kpiCard('Breadth', pct(rg.breadth,0), rg.state==='RISK_ON'?'risk-on':'risk-off', rg.state==='RISK_ON'?'pos':'neg'),
+  ].join('');
+  document.getElementById('kpiStrip').innerHTML = html;
+}
+
+function renderStaleBanner(){
+  const h=DS.health, el=document.getElementById('staleBanner');
+  if(h.level==='ok'){ el.style.display='none'; return; }
+  el.className='stale-banner '+(h.level==='stale'?'stale':'warn');
+  el.style.display='flex';
+  el.innerHTML = `<span>${h.level==='stale'?'✕':'⚠'}</span><span>${h.level==='stale'?'DATA INTEGRITY':'DATA CHECK'} — `+
+    esc(h.messages.join(' · ')||'a feed is approaching its freshness budget')+
+    ` &nbsp;<a href="#" onclick="setTab('health');return false;">See Data Health →</a></span>`;
+}
+
+/* ============================ tab nav ============================ */
+function renderTabBar(){
+  document.getElementById('tabBar').innerHTML = TABS.map(([k,label])=>
+    `<button class="tab ${state.tab===k?'active':''}" data-tab="${k}">${label}</button>`).join('');
+  document.getElementById('tabBar').onclick = e=>{ const b=e.target.closest('.tab'); if(b) setTab(b.dataset.tab); };
+}
+function setTab(k){ state.tab=k; renderTabBar(); renderTab(); window.scrollTo({top:0,behavior:'smooth'}); }
+function renderTab(){
+  const fn = ({overview:renderOverview, allocation:renderAllocation, performance:renderPerformance,
+    attribution:renderAttribution, risk:renderRisk, signals:renderSignals, health:renderHealth,
+    method:renderMethod})[state.tab] || (()=>'');
+  document.getElementById('tabContent').innerHTML = '<div></div>';
+  fn();
+}
+
+/* ============================ equity chart builder ============================ */
+function sliceWindow(dates, key){
+  const n=dates.length, last=new Date(dates[n-1]+'T00:00:00');
+  if(key==='SI') return 0;
+  if(key==='YTD'){ const ys=dates.findIndex(d=>d.slice(0,4)===dates[n-1].slice(0,4)); return Math.max(0,ys-1); }
+  const days={'1M':30,'3M':91,'6M':183,'1Y':365,'3Y':1095}[key]||99999;
+  const cut=new Date(last); cut.setDate(cut.getDate()-days);
+  let i=dates.findIndex(d=> new Date(d+'T00:00:00')>=cut); return i<0?0:i;
+}
+function cumFrom(arr, i0){ const base=arr[i0]; return arr.map((v,i)=> i<i0?null : (v/base-1)); }
+function ddFrom(arr, i0){ let peak=-Infinity; return arr.map((v,i)=>{ if(i<i0) return null; peak=Math.max(peak,v); return v/peak-1; }); }
+
+function buildEquityChart(elId, opt){
+  opt = opt||{};
+  const eq=DS.equity, win=opt.window||'SI';
+  let dates=eq.dates.slice(), model=eq.model.slice();
+  if(eq.live && opt.showLive!==false){ dates=dates.concat(eq.live.dates); model=model.concat(eq.live.equity); }
+  const i0=sliceWindow(dates,win);
+  const log=!!opt.log;
+  const traces=[];
+  const toY = a => log ? a.map((v,i)=> i<i0?null : eq_at(model,i)/model[i0]) : cumFrom(a,i0).map(v=> v===null?null:v*100);
+  // model
+  const mY = log ? model.map((v,i)=> i<i0?null:v/model[i0]) : cumFrom(model,i0).map(v=> v===null?null:v*100);
+  const splitBT = eq.live && opt.showLive!==false ? eq.dates.length : model.length; // backtest length
+  traces.push({type:'scatter',mode:'lines',name:'Model',x:dates,y:mY,
+    line:{color:'rgba(26,135,84,0.95)',width:2.2}, fill:log?'none':'tozeroy', fillcolor:'rgba(26,135,84,0.06)',
+    hovertemplate:'%{x|%-d %b %Y}<br><b>Model</b> %{y:.1f}'+(log?'×':'%')+'<extra></extra>'});
+  // live dashed overlay (distinct, never silently spliced)
+  if(eq.live && opt.showLive!==false){
+    const lx=[eq.live.anchor_date].concat(eq.live.dates);
+    let ly=[eq.live.anchor_equity].concat(eq.live.equity);
+    ly = log ? ly.map(v=>v/model[i0]) : ly.map(v=> v/model[i0]-1).map(v=>v*100);
+    traces.push({type:'scatter',mode:'lines+markers',name:'Live (MTM)',x:lx,y:ly,
+      line:{color:'rgba(26,135,84,0.95)',width:2,dash:'dot'},marker:{size:5},
+      hovertemplate:'%{x|%-d %b %Y}<br><b>Live MTM</b> %{y:.1f}'+(log?'×':'%')+'<extra></extra>'});
+  }
+  // benchmarks
+  if(opt.showBenchmarks!==false){
+    const order=[['SPY','#8a8a82'],['BAL6040','#b0b0a8']];
+    order.forEach(([k,col])=>{ const bm=eq.benchmarks[k]; if(!bm) return;
+      const bY = log ? bm.equity.map((v,i)=> i<i0?null:v/bm.equity[i0]) : cumFrom(bm.equity,i0).map(v=> v===null?null:v*100);
+      traces.push({type:'scatter',mode:'lines',name:k,x:eq.dates,y:bY,line:{color:col,width:1.3},
+        hovertemplate:'%{x|%-d %b %Y}<br>'+(DS.meta&&'')+k+' %{y:.1f}'+(log?'×':'%')+'<extra></extra>'});
+    });
+  }
+  // drawdown underlay on y2
+  const layoutExtra={ showlegend:true, legend:{orientation:'h',x:0,y:1.08,font:{size:11}},
+    yaxis:{gridcolor:'#ededea',tickfont:{size:10,family:'JetBrains Mono'},ticksuffix:log?'×':'%',zeroline:!log,zerolinecolor:'#cfcdc4'} };
+  if(log) layoutExtra.yaxis.type='log';
+  if(opt.showDrawdown){
+    const dd=ddFrom(model,i0).map(v=> v===null?null:v*100);
+    traces.push({type:'scatter',mode:'lines',name:'Drawdown',x:dates,y:dd,yaxis:'y2',
+      line:{color:'rgba(192,57,43,0.0)',width:0},fill:'tozeroy',fillcolor:'rgba(192,57,43,0.10)',
+      hovertemplate:'DD %{y:.1f}%<extra></extra>'});
+    layoutExtra.yaxis2={overlaying:'y',side:'right',range:[Math.min(-1,Math.min(...dd.filter(isNum))*1.1),0],
+      ticksuffix:'%',tickfont:{size:9,color:'rgba(192,57,43,0.8)',family:'JetBrains Mono'},
+      gridcolor:'rgba(0,0,0,0)',zeroline:false,showgrid:false};
+  }
+  // regime shading (RISK_OFF bands)
+  if(opt.showRegime){
+    const shapes=[]; const ev=DS.regime.events; let offStart=null;
+    ev.forEach(e=>{ if(e.direction==='RISK_OFF') offStart=e.date; else if(e.direction==='RISK_ON'&&offStart){
+      shapes.push({type:'rect',xref:'x',yref:'paper',x0:offStart,x1:e.date,y0:0,y1:1,
+        fillcolor:'rgba(192,57,43,0.06)',line:{width:0},layer:'below'}); offStart=null; } });
+    if(offStart) shapes.push({type:'rect',xref:'x',yref:'paper',x0:offStart,x1:dates[dates.length-1],y0:0,y1:1,
+      fillcolor:'rgba(192,57,43,0.06)',line:{width:0},layer:'below'});
+    layoutExtra.shapes=shapes;
+  }
+  plot(document.getElementById(elId), traces, baseLayout(layoutExtra));
+}
+function eq_at(a,i){return a[i];}
+
+/* ============================ donut ============================ */
+function buildDonut(elId, mapping, colorFn, centerTxt){
+  const labels=Object.keys(mapping), vals=labels.map(k=>mapping[k]);
+  const colors=labels.map(colorFn);
+  plot(document.getElementById(elId), [{type:'pie',labels,values:vals,hole:0.62,sort:false,
+    marker:{colors,line:{color:'#fff',width:2}},textinfo:'label+percent',textposition:'outside',
+    textfont:{size:11},hovertemplate:'%{label}<br>%{percent}<extra></extra>'}],
+    {margin:{t:10,b:10,l:10,r:10},paper_bgcolor:'transparent',font:PLOT_FONT,showlegend:false,
+     annotations:centerTxt?[{text:centerTxt,showarrow:false,font:{size:13,family:'DM Sans',color:'#5c5c56'}}]:[]});
+}
+
+/* ============================ helpers for tables ============================ */
+function sleeveChip(code){ const m=DS.weights.sleeve_meta[code]||{name:code}; const col=SLEEVE_COLORS[code]||'#8a8a82';
+  return `<span class="sl-chip" style="background:${col}" title="${esc(m.name||code)}">${code}</span>`; }
+function windowBtns(cur, keys, fn){ return `<div class="fbtns">`+keys.map(k=>`<button class="fbtn ${cur===k?'active':''}" onclick="${fn}('${k}')">${k}</button>`).join('')+`</div>`; }
+
+/* ============================ OVERVIEW ============================ */
+function renderOverview(){
+  const s=DS.stats, rg=DS.regime, w=DS.weights;
+  const cap = s.capture.SPY||{};
+  const el=document.getElementById('tabContent');
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-h">
+        <div class="card-title">Model vs Benchmarks — growth of 1, since inception</div>
+        <div id="ovWinBtns"></div>
+      </div>
+      <div id="ovEquity" class="chart" style="height:360px"></div>
+      <div class="card-note" style="margin-top:8px">Green solid = deployed model (breadth de-risk gate + EM tilt). Dotted = live mark-to-market this week. Red bands = risk-off periods; red shaded area = model drawdown (right axis).</div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Allocation by sleeve</div>
+        <div id="ovDonut" class="chart" style="height:240px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Snapshot</div>
+        <div class="kv">
+          <div class="k">Regime</div><div class="v">${rg.state==='RISK_ON'?'<span class="pos">Risk-On</span>':'<span class="neg">Risk-Off</span>'} · breadth ${pct(rg.breadth,0)}</div>
+          <div class="k">EM tilt</div><div class="v">${rg.eem_tilt.active?'<span class="pos">On</span>':'Off'} (${esc(rg.eem_tilt.state||'')})</div>
+          <div class="k">Invested / cash</div><div class="v">${pct(w.invested_pct,1)} / ${pct(w.cash_pct,1)}</div>
+          <div class="k">Holdings</div><div class="v">${w.concentration.n_holdings} · top-5 ${pct(w.concentration.top5,0)}</div>
+          <div class="k">Sharpe / Sortino</div><div class="v">${num(s.sharpe,2)} / ${num(s.sortino,2)}</div>
+          <div class="k">Max drawdown</div><div class="v neg">${pct(s.max_dd)}</div>
+          <div class="k">Beta / capture vs S&P</div><div class="v">${num(cap.beta,2)} · ${num(cap.up_capture,2)}↑ / ${num(cap.down_capture,2)}↓</div>
+          <div class="k">MTD · QTD · YTD</div><div class="v">${colored(pctSigned(s.period_returns.MTD),s.period_returns.MTD)} · ${colored(pctSigned(s.period_returns.QTD),s.period_returns.QTD)} · ${colored(pctSigned(s.period_returns.YTD),s.period_returns.YTD)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div class="card-title">Recent contributors (1 week)</div><div class="card-note">current weight × ETF return</div></div>
+      <div id="ovMovers"></div>
+    </div>`;
+  document.getElementById('ovWinBtns').innerHTML = windowBtns(state.perfWindow,['3M','6M','YTD','1Y','SI'],'setOvWin');
+  buildEquityChart('ovEquity',{window:state.perfWindow,showBenchmarks:true,showDrawdown:true,showRegime:true,showLive:true});
+  const bySleeve={}; Object.keys(w.by_sleeve).forEach(k=>{ if((w.by_sleeve[k]||0)>1e-4) bySleeve[(DS.weights.sleeve_meta[k]||{}).name||k]=w.by_sleeve[k]; });
+  buildDonut('ovDonut', bySleeve, (k)=>{ const code=Object.keys(DS.weights.sleeve_meta).find(c=>(DS.weights.sleeve_meta[c].name)===k); return SLEEVE_COLORS[code]||'#8a8a82'; });
+  renderMovers('ovMovers','1W');
+}
+function setOvWin(k){ state.perfWindow=k; document.getElementById('ovWinBtns').innerHTML=windowBtns(k,['3M','6M','YTD','1Y','SI'],'setOvWin'); buildEquityChart('ovEquity',{window:k,showBenchmarks:true,showDrawdown:true,showRegime:true,showLive:true}); }
+
+function renderMovers(elId, hz){
+  const rows=DS.attribution.etf.filter(r=>r[hz]&&isNum(r[hz].contrib)).slice();
+  rows.sort((a,b)=> b[hz].contrib - a[hz].contrib);
+  const top=rows.slice(0,5), bot=rows.slice(-5).reverse();
+  const mk = r => `<tr><td>${sleeveChip(r.sleeve)} <strong>${esc(r.ticker)}</strong> <span class="muted" style="font-size:11px">${esc(r.name)}</span></td>
+    <td class="r num">${pct(r.weight,1)}</td><td class="r num ${signClass(r[hz].ret)}">${pctSigned(r[hz].ret)}</td>
+    <td class="r num ${signClass(r[hz].contrib)}">${pctSigned(r[hz].contrib,2)}</td></tr>`;
+  document.getElementById(elId).innerHTML = `<div class="grid2" style="gap:24px">
+    <div><div class="section-label">Top contributors</div><table class="tbl"><thead><tr><th>Holding</th><th class="r">Wt</th><th class="r">Ret</th><th class="r">Contrib</th></tr></thead><tbody>${top.map(mk).join('')}</tbody></table></div>
+    <div><div class="section-label">Detractors</div><table class="tbl"><thead><tr><th>Holding</th><th class="r">Wt</th><th class="r">Ret</th><th class="r">Contrib</th></tr></thead><tbody>${bot.map(mk).join('')}</tbody></table></div>
+  </div>`;
+}
+
+/* ============================ ALLOCATION ============================ */
+function renderAllocation(){
+  const w=DS.weights, rg=DS.regime;
+  const el=document.getElementById('tabContent');
+  el.innerHTML = `
+    <div class="grid3">
+      ${exposureCard('By sleeve','expSleeve')}
+      ${exposureCard('By asset class','expAsset')}
+      ${exposureCard('By geography','expGeo')}
+    </div>
+    <div class="card">
+      <div class="card-h"><div class="card-title">Model portfolio — target weights</div>
+        <div class="card-note">${w.concentration.n_holdings} holdings · HHI ${num(w.concentration.hhi,3)} · top-5 ${pct(w.concentration.top5,0)} · cash ${pct(w.cash_pct,1)}</div></div>
+      <div style="overflow-x:auto"><table class="tbl" id="allocTbl"></table></div>
+      <div class="card-note" style="margin-top:10px">“How weight is built” = sleeve allocation × within-sleeve weight. EEM also carries the 10% EM tilt funded from sleeve B. Trade-as shows the instrument actually held (the breadth signal may be computed on a UCITS sibling).</div>
+    </div>`;
+  exposureBars('expSleeve', w.by_sleeve, k=>SLEEVE_COLORS[k]||'#8a8a82', k=>(w.sleeve_meta[k]||{}).name||k);
+  exposureBars('expAsset', w.by_asset_class, ()=> '#2563eb', k=>k);
+  exposureBars('expGeo', w.by_geo, ()=> '#7c3aed', k=>k);
+  renderAllocTable();
+}
+function exposureCard(title,id){ return `<div class="card"><div class="card-title" style="margin-bottom:12px">${title}</div><div id="${id}"></div></div>`; }
+function exposureBars(elId, mapping, colorFn, labelFn){
+  const entries=Object.entries(mapping).filter(([k,v])=>(v||0)>1e-4).sort((a,b)=>b[1]-a[1]);
+  const max=Math.max(...entries.map(e=>e[1]),0.0001);
+  document.getElementById(elId).innerHTML = entries.map(([k,v])=>`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+      <div style="width:130px;font-size:12.5px"><span class="dot" style="background:${colorFn(k)}"></span>${esc(labelFn(k))}</div>
+      <div class="bar-track" style="flex:1"><div class="bar-fill" style="width:${(v/max*100).toFixed(1)}%;background:${colorFn(k)}"></div></div>
+      <div class="num" style="width:48px;text-align:right">${pct(v,1)}</div>
+    </div>`).join('');
+}
+function renderAllocTable(){
+  const rows=DS.weights.rows.filter(r=>(r.weight||0)>1e-4);
+  const buildStr = r => r.build.map(b=> b.sleeve==='TILT' ? `Tilt ${pct(b.contrib,1)}` :
+    b.sleeve==='Overlay' ? `Overlay ${pct(b.contrib,1)}` : `${b.sleeve}: ${b.alloc}×${pct(b.within,1)}=${pct(b.contrib,1)}`).join(' + ');
+  const body = rows.map(r=>`<tr>
+    <td>${sleeveChip(r.sleeve)} <strong>${esc(r.ticker)}</strong></td>
+    <td><span style="font-size:12.5px">${esc(r.name)}</span><br><span class="muted" style="font-size:10.5px">${esc(r.theme)} · ${esc(r.geo)}</span></td>
+    <td class="c"><span class="muted num">${esc(r.tradeAs)}</span></td>
+    <td class="num" style="font-size:11px;color:var(--t2)">${buildStr(r)}</td>
+    <td class="r"><strong class="num">${pct(r.weight,1)}</strong></td>
+    <td class="r" style="width:90px"><div class="bar-track"><div class="bar-fill" style="width:${(r.weight/0.16*100).toFixed(0)}%;background:${SLEEVE_COLORS[r.sleeve]||'#8a8a82'}"></div></div></td>
+  </tr>`).join('');
+  document.getElementById('allocTbl').innerHTML =
+    `<thead><tr><th>ETF</th><th>Description</th><th class="c">Trade as</th><th>How weight is built</th><th class="r">Weight</th><th></th></tr></thead><tbody>${body}
+     <tr class="sum"><td colspan="4">Total deployed</td><td class="r num">${pct(DS.weights.invested_pct,1)}</td><td></td></tr></tbody>`;
+}
+
+/* ============================ client-side stats (model + benchmarks) ============================ */
+const mean = a => a.reduce((x,y)=>x+y,0)/(a.length||1);
+function arrReturns(eq){ const r=[]; for(let i=1;i<eq.length;i++){ if(isNum(eq[i])&&isNum(eq[i-1])&&eq[i-1]) r.push(eq[i]/eq[i-1]-1);} return r; }
+function statsOf(eq, dates){
+  const idx=eq.map((v,i)=>i).filter(i=>isNum(eq[i]));
+  if(idx.length<2) return {};
+  const i0=idx[0], i1=idx[idx.length-1];
+  const r=arrReturns(eq.slice(i0,i1+1));
+  const days=(new Date(dates[i1]+'T00:00:00')-new Date(dates[i0]+'T00:00:00'))/86400000;
+  const m=mean(r), sd=Math.sqrt(mean(r.map(x=>(x-m)**2))*r.length/Math.max(1,r.length-1));
+  const dn=r.filter(x=>x<0), dsd=Math.sqrt(mean(dn.map(x=>x*x))||0);
+  let peak=-Infinity,mdd=0; for(let i=i0;i<=i1;i++){ if(!isNum(eq[i])) continue; peak=Math.max(peak,eq[i]); mdd=Math.min(mdd,eq[i]/peak-1);}
+  const cagr=Math.pow(eq[i1]/eq[i0],365.25/days)-1;
+  return {totret:eq[i1]/eq[i0]-1, cagr, vol:sd*Math.sqrt(252), sharpe:sd?m/sd*Math.sqrt(252):null,
+    sortino:dsd?m/dsd*Math.sqrt(252):null, maxdd:mdd, calmar:mdd?cagr/Math.abs(mdd):null,
+    hit:r.filter(x=>x>0).length/r.length, best:Math.max(...r), worst:Math.min(...r)};
+}
+function rollingSeries(eq, dates, win){
+  const ret=[], vol=[], x=[];
+  for(let i=win;i<eq.length;i++){ if(!isNum(eq[i])||!isNum(eq[i-win])) continue;
+    x.push(dates[i]); ret.push(eq[i]/eq[i-win]-1);
+    const r=arrReturns(eq.slice(i-win,i+1)); const m=mean(r); const sd=Math.sqrt(mean(r.map(v=>(v-m)**2)));
+    vol.push(sd*Math.sqrt(252)); }
+  return {x,ret,vol};
+}
+
+/* ============================ PERFORMANCE ============================ */
+function renderPerformance(){
+  const s=DS.stats, eq=DS.equity;
+  const el=document.getElementById('tabContent');
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-h">
+        <div class="card-title">Cumulative return — model vs benchmarks</div>
+        <div style="display:flex;gap:14px;align-items:center">
+          <label style="font-size:12px;color:var(--t3);display:flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="perfLog" ${state.perfLog?'checked':''} onchange="togglePerfLog()"> log</label>
+          <div id="perfWinBtns"></div>
+        </div>
+      </div>
+      <div id="perfEquity" class="chart" style="height:380px"></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-title" style="margin-bottom:10px">Rolling 12-month return &amp; volatility</div><div id="perfRolling" class="chart" style="height:260px"></div></div>
+      <div class="card"><div class="card-title" style="margin-bottom:10px">Drawdown (underwater)</div><div id="perfDD" class="chart" style="height:260px"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Period returns</div>
+        <div style="overflow-x:auto"><table class="tbl" id="perfPeriods"></table></div>
+        <div class="card-note" style="margin-top:8px">Model includes the live mark-to-market day; benchmarks to backtest close.</div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Risk &amp; return statistics</div>
+        <div style="overflow-x:auto"><table class="tbl" id="perfStats"></table></div>
+        <div class="card-note" style="margin-top:8px">Annualised with √252; Sharpe/Sortino assume rf = 0. Benchmarks from total-return prices.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Monthly returns (%)</div>
+      <div style="overflow-x:auto" id="perfHeatmap"></div>
+    </div>`;
+  document.getElementById('perfWinBtns').innerHTML = windowBtns(state.perfWindow,['3M','6M','YTD','1Y','3Y','SI'],'setPerfWin');
+  buildEquityChart('perfEquity',{window:state.perfWindow,showBenchmarks:true,showDrawdown:false,showRegime:true,showLive:true,log:state.perfLog});
+  buildRolling();
+  buildUnderwater();
+  buildPeriodTable();
+  buildPerfStats();
+  buildHeatmap();
+}
+function buildPeriodTable(){
+  const bs=DS.stats.benchmark_stats||{};
+  const cols=[['Model',DS.stats.period_returns,'#1a8754']];
+  if(bs.SPY) cols.push(['S&P 500',bs.SPY.period_returns,'#8a8a82']);
+  if(bs.BAL6040) cols.push(['60/40',bs.BAL6040.period_returns,'#b0b0a8']);
+  const periods=[['MTD','MTD'],['QTD','QTD'],['YTD','YTD'],['1 Year','1Y'],['Since inception','SI']];
+  const head=`<thead><tr><th>Period</th>${cols.map(c=>`<th class="r"><span class="dot" style="background:${c[2]}"></span>${c[0]}</th>`).join('')}</tr></thead>`;
+  const body=periods.map(([lab,k])=>`<tr><td>${lab}</td>${cols.map(c=>{const v=(c[1]||{})[k];return `<td class="r num ${signClass(v)}">${pctSigned(v)}</td>`;}).join('')}</tr>`).join('');
+  document.getElementById('perfPeriods').innerHTML=head+'<tbody>'+body+'</tbody>';
+}
+function setPerfWin(k){ state.perfWindow=k; document.getElementById('perfWinBtns').innerHTML=windowBtns(k,['3M','6M','YTD','1Y','3Y','SI'],'setPerfWin'); buildEquityChart('perfEquity',{window:k,showBenchmarks:true,showDrawdown:false,showRegime:true,showLive:true,log:state.perfLog}); }
+function togglePerfLog(){ state.perfLog=document.getElementById('perfLog').checked; buildEquityChart('perfEquity',{window:state.perfWindow,showBenchmarks:true,showDrawdown:false,showRegime:true,showLive:true,log:state.perfLog}); }
+
+function buildRolling(){
+  const eq=DS.equity; const rs=rollingSeries(eq.model,eq.dates,252);
+  plot(document.getElementById('perfRolling'),[
+    {type:'scatter',mode:'lines',name:'12m return',x:rs.x,y:rs.ret.map(v=>v*100),line:{color:'#1a8754',width:1.8},hovertemplate:'%{x|%b %Y}<br>12m ret %{y:.1f}%<extra></extra>'},
+    {type:'scatter',mode:'lines',name:'12m vol',x:rs.x,y:rs.vol.map(v=>v*100),yaxis:'y2',line:{color:'#b45309',width:1.4},hovertemplate:'12m vol %{y:.1f}%<extra></extra>'},
+  ], baseLayout({showlegend:true,legend:{orientation:'h',x:0,y:1.1,font:{size:10}},
+    yaxis:{gridcolor:'#ededea',ticksuffix:'%',tickfont:{size:9,family:'JetBrains Mono'},zeroline:true,zerolinecolor:'#cfcdc4'},
+    yaxis2:{overlaying:'y',side:'right',ticksuffix:'%',tickfont:{size:9,color:'#b45309',family:'JetBrains Mono'},gridcolor:'rgba(0,0,0,0)',rangemode:'tozero'}}));
+}
+function buildUnderwater(){
+  const eq=DS.equity; let peak=-Infinity; const dd=eq.model.map(v=>{ peak=Math.max(peak,v); return (v/peak-1)*100; });
+  plot(document.getElementById('perfDD'),[{type:'scatter',mode:'lines',x:eq.dates,y:dd,line:{color:'rgba(192,57,43,0.6)',width:1},fill:'tozeroy',fillcolor:'rgba(192,57,43,0.12)',hovertemplate:'%{x|%b %Y}<br>DD %{y:.1f}%<extra></extra>'}],
+    baseLayout({yaxis:{gridcolor:'#ededea',ticksuffix:'%',tickfont:{size:9,family:'JetBrains Mono'},rangemode:'tozero'}}));
+}
+function buildPerfStats(){
+  const eq=DS.equity;
+  const cols=[['Model',eq.model,eq.dates,'#1a8754']];
+  if(eq.benchmarks.SPY) cols.push(['S&P 500',eq.benchmarks.SPY.equity,eq.benchmarks.SPY.dates,'#8a8a82']);
+  if(eq.benchmarks.BAL6040) cols.push(['60/40',eq.benchmarks.BAL6040.equity,eq.benchmarks.BAL6040.dates,'#b0b0a8']);
+  const st=cols.map(c=>statsOf(c[1],c[2]));
+  const cap=DS.stats.capture;
+  const rows=[
+    ['Total return', st.map(x=>pctSigned(x.totret))],
+    ['CAGR', st.map(x=>pct(x.cagr))],
+    ['Ann. volatility', st.map(x=>pct(x.vol))],
+    ['Sharpe (rf=0)', st.map(x=>num(x.sharpe,2))],
+    ['Sortino', st.map(x=>num(x.sortino,2))],
+    ['Max drawdown', st.map(x=>pct(x.maxdd))],
+    ['Calmar', st.map(x=>num(x.calmar,2))],
+    ['Hit rate (days)', st.map(x=>pct(x.hit,0))],
+    ['Best day', st.map(x=>pctSigned(x.best))],
+    ['Worst day', st.map(x=>pctSigned(x.worst))],
+    ['Beta vs S&P', cols.map((c,i)=> i===0?num((cap.SPY||{}).beta,2): c[0]==='S&P 500'?'1.00':'—')],
+    ['Up capture vs S&P', cols.map((c,i)=> i===0?num((cap.SPY||{}).up_capture,2):'—')],
+    ['Down capture vs S&P', cols.map((c,i)=> i===0?num((cap.SPY||{}).down_capture,2):'—')],
+  ];
+  const head=`<thead><tr><th>Metric</th>${cols.map(c=>`<th class="r"><span class="dot" style="background:${c[3]}"></span>${c[0]}</th>`).join('')}</tr></thead>`;
+  const body=rows.map(([lab,vals])=>`<tr><td>${lab}</td>${vals.map(v=>`<td class="r num">${v}</td>`).join('')}</tr>`).join('');
+  document.getElementById('perfStats').innerHTML=head+'<tbody>'+body+'</tbody>';
+}
+function buildHeatmap(){
+  const mm=DS.monthly; const years=Object.keys(mm).sort();
+  const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let maxAbs=0.0001; years.forEach(y=>MO.forEach((_,i)=>{ const v=mm[y][i+1]; if(isNum(v)) maxAbs=Math.max(maxAbs,Math.abs(v)); }));
+  const cell=v=>{ if(!isNum(v)) return '<td style="background:var(--bg3)"></td>';
+    const a=Math.min(0.82, Math.abs(v)/maxAbs*0.8+0.06); const col=v>=0?`rgba(26,135,84,${a})`:`rgba(192,57,43,${a})`;
+    return `<td class="num" style="background:${col};text-align:right;font-size:11px;padding:6px 8px;color:${Math.abs(v)/maxAbs>0.5?'#fff':'var(--t1)'}">${(v*100).toFixed(1)}</td>`; };
+  const head=`<tr><th>Year</th>${MO.map(m=>`<th class="r" style="font-size:10px">${m}</th>`).join('')}<th class="r">Year</th></tr>`;
+  const body=years.map(y=>`<tr><td><strong>${y}</strong></td>${MO.map((_,i)=>cell(mm[y][i+1])).join('')}
+    <td class="num ${signClass(mm[y].YEAR)}" style="text-align:right;font-weight:700">${pctSigned(mm[y].YEAR)}</td></tr>`).join('');
+  document.getElementById('perfHeatmap').innerHTML=`<table class="tbl" style="font-size:11px"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+/* ============================ ATTRIBUTION ============================ */
+function renderAttribution(){
+  const el=document.getElementById('tabContent');
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-h">
+        <div class="card-title">Contribution to return</div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <div class="fbtns" id="attrViewBtns">
+            <button class="fbtn ${state.attrView==='sleeve'?'active':''}" onclick="setAttrView('sleeve')">By sleeve</button>
+            <button class="fbtn ${state.attrView==='etf'?'active':''}" onclick="setAttrView('etf')">By ETF</button>
+          </div>
+          <div id="attrHzBtns"></div>
+        </div>
+      </div>
+      <div id="attrChart" class="chart" style="height:300px"></div>
+      <div class="card-note" style="margin-top:6px">${esc(DS.attribution.note)}${DS.attribution.uncovered.length?' Uncovered (no price feed): '+DS.attribution.uncovered.join(', ')+'.':''}</div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-title" style="margin-bottom:10px">Sleeve equity — growth of 1</div><div id="attrSleeveEq" class="chart" style="height:300px"></div></div>
+      <div class="card"><div class="card-title" style="margin-bottom:10px" id="attrTblTitle">Detail</div><div style="overflow-x:auto"><table class="tbl" id="attrTbl"></table></div></div>
+    </div>`;
+  document.getElementById('attrHzBtns').innerHTML = windowBtns(state.attrHorizon,['1D','1W','1M','YTD','SI'],'setAttrHz');
+  buildAttrChart(); buildSleeveEquity(); buildAttrTable();
+}
+function setAttrView(v){ state.attrView=v; renderAttribution(); }
+function setAttrHz(k){ state.attrHorizon=k; document.getElementById('attrHzBtns').innerHTML=windowBtns(k,['1D','1W','1M','YTD','SI'],'setAttrHz'); buildAttrChart(); buildAttrTable(); }
+function attrRows(){
+  const hz=state.attrHorizon;
+  if(state.attrView==='sleeve'){
+    return Object.entries(DS.attribution.sleeve).map(([code,r])=>({label:code,name:r.name,color:SLEEVE_COLORS[code]||'#888',
+      ret:(r[hz]||{}).ret, contrib:(r[hz]||{}).contrib, alloc:r.alloc})).filter(r=>isNum(r.contrib));
+  }
+  return DS.attribution.etf.map(r=>({label:r.ticker,name:r.name,sleeve:r.sleeve,color:SLEEVE_COLORS[r.sleeve]||'#888',
+    ret:(r[hz]||{}).ret, contrib:(r[hz]||{}).contrib, weight:r.weight})).filter(r=>isNum(r.contrib));
+}
+function buildAttrChart(){
+  const rows=attrRows().sort((a,b)=>b.contrib-a.contrib);
+  plot(document.getElementById('attrChart'),[{type:'bar',orientation:'h',
+    x:rows.map(r=>r.contrib*100).reverse(), y:rows.map(r=>r.label).reverse(),
+    marker:{color:rows.map(r=>r.color).reverse()},
+    hovertemplate:'%{y}<br>contrib %{x:.2f}%<extra></extra>'}],
+    baseLayout({margin:{t:8,b:30,l:70,r:14},xaxis:{ticksuffix:'%',gridcolor:'#ededea',tickfont:{size:9,family:'JetBrains Mono'},zeroline:true,zerolinecolor:'#cfcdc4'},yaxis:{tickfont:{size:11},automargin:true},hovermode:'closest'}));
+}
+function buildSleeveEquity(){
+  const eq=DS.equity; const traces=[{type:'scatter',mode:'lines',name:'Model',x:eq.dates,y:eq.model,line:{color:'#1a1a18',width:2}}];
+  Object.entries(eq.sleeves).forEach(([code,arr])=> traces.push({type:'scatter',mode:'lines',name:code,x:eq.dates,y:arr,line:{color:SLEEVE_COLORS[code],width:1.3}}));
+  plot(document.getElementById('attrSleeveEq'),traces,baseLayout({showlegend:true,legend:{orientation:'h',x:0,y:1.1,font:{size:10}},yaxis:{type:'log',gridcolor:'#ededea',tickfont:{size:9,family:'JetBrains Mono'}}}));
+}
+function buildAttrTable(){
+  const hz=state.attrHorizon; const rows=attrRows().sort((a,b)=>b.contrib-a.contrib);
+  document.getElementById('attrTblTitle').textContent = (state.attrView==='sleeve'?'Sleeve':'ETF')+' contribution — '+hz;
+  const isS=state.attrView==='sleeve';
+  const head=`<thead><tr><th>${isS?'Sleeve':'Holding'}</th><th class="r">${isS?'Alloc':'Weight'}</th><th class="r">Return</th><th class="r">Contribution</th></tr></thead>`;
+  const body=rows.map(r=>`<tr><td>${isS?sleeveChip(r.label)+' '+esc(r.name):sleeveChip(r.sleeve)+' <strong>'+esc(r.label)+'</strong>'}</td>
+    <td class="r num">${pct(isS?r.alloc:r.weight,isS?0:1)}</td>
+    <td class="r num ${signClass(r.ret)}">${pctSigned(r.ret)}</td>
+    <td class="r num ${signClass(r.contrib)}">${pctSigned(r.contrib,2)}</td></tr>`).join('');
+  const tot=rows.reduce((a,r)=>a+r.contrib,0);
+  document.getElementById('attrTbl').innerHTML=head+'<tbody>'+body+
+    `<tr class="sum"><td>Total</td><td></td><td></td><td class="r num ${signClass(tot)}">${pctSigned(tot,2)}</td></tr></tbody>`;
+}
+
+/* ============================ placeholder tabs (filled below) ============================ */
+function renderRisk(){
+  const rg=DS.regime, et=rg.eem_tilt;
+  const offT=rg.off_threshold*100, onT=rg.on_threshold*100, br=rg.breadth*100;
+  const el=document.getElementById('tabContent');
+  el.innerHTML = `
+    <div class="grid3">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px">Breadth de-risk gate</div>
+        <div style="font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1" class="${rg.state==='RISK_ON'?'pos':'neg'}">${br.toFixed(0)}%</div>
+        <div class="muted" style="font-size:12px;margin:4px 0 14px">S&amp;P 500 constituents above 200-day MA · ${rg.state==='RISK_ON'?'<span class="pos">Risk-On</span>':'<span class="neg">Risk-Off</span>'} since ${fmtDate(rg.since)}</div>
+        <div style="position:relative;height:26px;border-radius:6px;overflow:hidden;background:linear-gradient(90deg,#c0392b 0%,#c0392b ${offT}%,#b45309 ${offT}%,#b45309 ${onT}%,#1a8754 ${onT}%,#1a8754 100%);opacity:0.85">
+          <div style="position:absolute;top:-3px;bottom:-3px;left:${br}%;width:3px;background:#1a1a18;box-shadow:0 0 0 2px #fff"></div>
+        </div>
+        <div class="mono" style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:4px"><span>0</span><span>off ${offT}%</span><span>on ${onT}%</span><span>100</span></div>
+        <div class="callout" style="margin-top:14px;font-size:12px">Below ${offT.toFixed(0)}% breadth → shift ${(rg.derisk_fraction*100).toFixed(0)}% of NAV to ${rg.fallback_ticker}. Re-engage above ${onT.toFixed(0)}%.</div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px">Gate history</div>
+        <div class="kv">
+          <div class="k">Regime switches</div><div class="v">${rg.n_switches}</div>
+          <div class="k">Days risk-off</div><div class="v">${rg.days_risk_off} (${pct(rg.pct_days_risk_off/100,1)})</div>
+          <div class="k">De-risk fraction</div><div class="v">${pct(rg.derisk_fraction,0)}</div>
+          <div class="k">Switch cost</div><div class="v">${rg.switch_cost_bps} bps</div>
+          <div class="k">Parking asset</div><div class="v">${rg.fallback_ticker}</div>
+          <div class="k">Breadth panel as of</div><div class="v">${fmtDate(rg.panel_end_date)}</div>
+        </div>
+        <div class="callout" style="margin-top:14px;font-size:12px">The gate cut backtest max drawdown from <strong>${pct((DS.stats.overlay_compare.ungated||{}).max_dd)}</strong> (ungated) to <strong>${pct((DS.stats.overlay_compare.deployed||{}).max_dd)}</strong> (deployed); Sharpe ${num((DS.stats.overlay_compare.ungated||{}).sharpe,2)}→${num((DS.stats.overlay_compare.deployed||{}).sharpe,2)}.</div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px">EM tilt (EEM/SPY)</div>
+        <div style="font-size:20px;font-weight:700" class="${et.active?'pos':''}">${et.active?'Tilt ON':'Tilt off'}</div>
+        <div class="muted" style="font-size:12px;margin:4px 0 14px">${esc(et.state||'')} since ${fmtDate(et.since)}</div>
+        <div class="kv">
+          <div class="k">Ratio</div><div class="v">${num(et.ratio,3)}</div>
+          <div class="k">50d MA / 200d MA</div><div class="v">${num(et.fast_ma,3)} / ${num(et.slow_ma,3)}</div>
+          <div class="k">Cross</div><div class="v">${et.fast_ma>et.slow_ma?'<span class="pos">Golden</span>':'<span class="neg">Death</span>'}</div>
+          <div class="k">Switches · % time on</div><div class="v">${et.n_switches} · ${pct(et.pct_days_on/100,0)}</div>
+        </div>
+        <div class="callout" style="margin-top:14px;font-size:11.5px;border-left-color:var(--a)">Weak-evidence overlay: few distinct cross events in 7.5y. Held as a low-cost positional bet, not robust alpha.</div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">Model track with risk-off periods</div>
+        <div id="riskEquity" class="chart" style="height:300px"></div>
+        <div class="card-note" style="margin-top:6px">Red bands = gate in risk-off (50% to ${rg.fallback_ticker}).</div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">Regime switch events</div>
+        <div style="overflow-x:auto;max-height:320px"><table class="tbl" id="riskEvents"></table></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-title" style="margin-bottom:10px">EM tilt — ratio vs moving averages</div><div id="riskEem" class="chart" style="height:280px"></div></div>
+      <div class="card"><div class="card-title" style="margin-bottom:10px">Sleeve correlation (daily returns, since inception)</div><div id="riskCorr"></div></div>
+    </div>`;
+  buildEquityChart('riskEquity',{window:'SI',showBenchmarks:false,showDrawdown:false,showRegime:true,showLive:false});
+  // events table (most recent first)
+  const ev=rg.events.slice().reverse();
+  document.getElementById('riskEvents').innerHTML =
+    `<thead><tr><th>Date</th><th>Direction</th><th class="r">Breadth</th></tr></thead><tbody>`+
+    ev.map(e=>`<tr><td class="num">${fmtDate(e.date)}</td><td>${e.direction==='RISK_ON'?'<span class="pos">↑ Risk-On</span>':'<span class="neg">↓ Risk-Off</span>'}</td><td class="r num">${pct(e.breadth,1)}</td></tr>`).join('')+`</tbody>`;
+  // eem ratio
+  if(et.series){ const s=et.series;
+    plot(document.getElementById('riskEem'),[
+      {type:'scatter',mode:'lines',name:'EEM/SPY',x:s.dates,y:s.ratio,line:{color:'#8a8a82',width:1}},
+      {type:'scatter',mode:'lines',name:'50d MA',x:s.dates,y:s.fast_ma,line:{color:'#0891b2',width:1.6}},
+      {type:'scatter',mode:'lines',name:'200d MA',x:s.dates,y:s.slow_ma,line:{color:'#b45309',width:1.6}},
+    ], baseLayout({showlegend:true,legend:{orientation:'h',x:0,y:1.12,font:{size:10}},yaxis:{gridcolor:'#ededea',tickfont:{size:9,family:'JetBrains Mono'}}}));
+  } else { document.getElementById('riskEem').innerHTML='<div class="muted" style="padding:40px;text-align:center">No tilt series available.</div>'; }
+  buildCorrMatrix('riskCorr');
+}
+function pearson(a,b){ const n=Math.min(a.length,b.length); const x=a.slice(0,n),y=b.slice(0,n);
+  const mx=mean(x),my=mean(y); let sxy=0,sx=0,sy=0; for(let i=0;i<n;i++){ const dx=x[i]-mx,dy=y[i]-my; sxy+=dx*dy; sx+=dx*dx; sy+=dy*dy; }
+  return (sx&&sy)? sxy/Math.sqrt(sx*sy):null; }
+function buildCorrMatrix(elId){
+  const eq=DS.equity; const ser={Model:eq.model}; Object.keys(eq.sleeves).forEach(k=> ser[k]=eq.sleeves[k]);
+  const keys=Object.keys(ser); const rets={}; keys.forEach(k=> rets[k]=arrReturns(ser[k]));
+  const cell=v=>{ if(!isNum(v)) return '<td></td>'; const a=Math.abs(v); const col= v>0?`rgba(37,99,235,${a*0.7+0.05})`:`rgba(192,57,43,${a*0.7+0.05})`;
+    return `<td class="num" style="background:${col};text-align:center;color:${a>0.6?'#fff':'var(--t1)'}">${v.toFixed(2)}</td>`; };
+  const head=`<tr><th></th>${keys.map(k=>`<th class="c">${k}</th>`).join('')}</tr>`;
+  const body=keys.map(k1=>`<tr><td><strong>${k1}</strong></td>${keys.map(k2=>cell(pearson(rets[k1],rets[k2]))).join('')}</tr>`).join('');
+  document.getElementById(elId).innerHTML=`<table class="tbl" style="font-size:12px"><thead>${head}</thead><tbody>${body}</tbody></table>
+    <div class="card-note" style="margin-top:8px">Lower cross-sleeve correlation is the diversification engine. Model row reflects the blend.</div>`;
+}
+
+function renderSignals(){
+  const sig=DS.signals, sm=DS.weights.sleeve_meta;
+  const order=['A','B','C','D']; const el=document.getElementById('tabContent');
+  el.innerHTML = `<div class="callout" style="margin-bottom:18px">Each sleeve below shows its <strong>current holdings and weights</strong> — the live output of the breadth / trend / momentum signal — with each holding's position versus its 200-day moving average where a price feed is available. This is the “why these weights” view.</div>
+    <div class="grid2">${order.filter(c=>sig[c]&&sig[c].length).map(c=>`
+      <div class="card">
+        <div class="card-h"><div class="card-title">${sleeveChip(c)} ${esc((sm[c]||{}).name||c)}</div><div class="card-note">${pct((sm[c]||{}).alloc,0)} of NAV</div></div>
+        <div class="muted" style="font-size:12px;margin-bottom:12px">${esc((sm[c]||{}).desc||'')}</div>
+        <table class="tbl"><thead><tr><th>Holding</th><th class="r">Weight</th><th class="r">vs 200d</th><th class="r">1d</th></tr></thead><tbody>
+        ${sig[c].map(h=>`<tr>
+          <td><strong>${esc(h.ticker)}</strong> <span class="muted" style="font-size:11px">${esc(h.theme)}</span></td>
+          <td class="r num">${pct(h.weight,1)}</td>
+          <td class="r">${trendBar(h.vs_ma200)}</td>
+          <td class="r num ${signClass(h.change_pct)}">${isNum(h.change_pct)?pctSigned(h.change_pct):'—'}</td></tr>`).join('')}
+        </tbody></table>
+      </div>`).join('')}</div>`;
+}
+function trendBar(v){ if(!isNum(v)) return '<span class="muted">—</span>';
+  const pc=(v*100); const w=Math.min(50,Math.abs(pc)*1.5); const col=v>=0?'#1a8754':'#c0392b';
+  return `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:flex-end">
+    <span class="num ${signClass(v)}" style="font-size:11px">${pctSigned(v)}</span>
+    <span style="position:relative;display:inline-block;width:54px;height:8px;background:var(--bg4);border-radius:3px">
+      <span style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--bd-strong)"></span>
+      <span style="position:absolute;${v>=0?'left:50%':'right:50%'};top:0;bottom:0;width:${w}%;background:${col};border-radius:3px"></span>
+    </span></span>`;
+}
+function renderHealth(){
+  const h=DS.health, m=DS.meta, rc=DS.stats.reconcile, ch=DS.changes;
+  const lvlTxt={ok:'All checks passed',warn:'Attention — a feed is near its freshness budget',stale:'Stale or inconsistent data detected'}[h.level];
+  const lvlCls={ok:'pos',warn:'',stale:'neg'}[h.level];
+  const feedRow=f=>`<tr><td>${esc(f.feed)}</td><td class="num">${fmtDate(f.asOf)}</td>
+    <td class="r num">${f.bday_lag==null?'—':f.bday_lag}</td><td class="r num">${f.budget_bdays}</td>
+    <td class="c"><span class="pill pill-health-${f.level}" style="padding:2px 8px">${f.level.toUpperCase()}</span></td>
+    <td class="num muted" style="font-size:11px">${esc((f.computed_at||'').replace('T',' ').slice(0,16))}</td></tr>`;
+  const recRow=k=>{ const ok=(rc.diffs[k]||0)<=rc.tol[k];
+    return `<tr><td>${k}</td><td class="r num">${num(rc.recomputed[k],4)}</td><td class="r num">${num(DS.stats.engine_stats[k],4)}</td>
+    <td class="r num">${num(rc.diffs[k],4)}</td><td class="r num muted">${rc.tol[k]}</td><td class="c">${ok?'<span class="pos">✓</span>':'<span class="neg">✕</span>'}</td></tr>`; };
+  const el=document.getElementById('tabContent');
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-h"><div class="card-title">Data integrity status</div><span class="pill pill-health-${h.level}">${h.level==='ok'?'✓ OK':h.level==='warn'?'⚠ WARN':'✕ STALE'}</span></div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:6px" class="${lvlCls}">${lvlTxt}</div>
+      ${h.messages.length?`<ul style="margin:8px 0 0 18px;font-size:13px;color:var(--t2)">${h.messages.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<div class="muted" style="font-size:13px">No warnings. All feeds within budget; regime since-date reconciles with the latest event; recomputed statistics match the engine.</div>'}
+      <div class="callout" style="margin-top:14px;font-size:12px">This tab exists because the upstream engine once published a confident regime state on an 11-week-stale breadth panel. The monitor now checks feed freshness (business-day lag vs budget), the regime since-date against the latest switch event, and recomputed statistics against the engine's own figures — on every build.</div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Feed freshness</div>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Feed</th><th>As of</th><th class="r">Lag (bdays)</th><th class="r">Budget</th><th class="c">Status</th><th>Engine computed</th></tr></thead>
+      <tbody>${h.feeds.map(feedRow).join('')}</tbody></table></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Statistics reconciliation</div>
+        <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Metric</th><th class="r">Recomputed</th><th class="r">Engine</th><th class="r">|Δ|</th><th class="r">Tol</th><th class="c">✓</th></tr></thead>
+        <tbody>${['sharpe','cagr','total_return','max_dd'].map(recRow).join('')}</tbody></table></div>
+        <div class="card-note" style="margin-top:8px">Recomputed on the backtest window (excludes the live extension), so it is an apples-to-apples check against the engine's published figures.</div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">Provenance</div>
+        <div class="kv">
+          <div class="k">Source engine</div><div class="v"><a href="https://github.com/${esc(m.source_repo)}" target="_blank" rel="noopener">${esc(m.source_repo)}</a></div>
+          <div class="k">Commit</div><div class="v num">${esc((m.source_commit||'—').slice(0,10))}</div>
+          <div class="k">Model data as of</div><div class="v">${fmtDate(m.asOf)}</div>
+          <div class="k">Live NAV as of</div><div class="v">${fmtDate(m.live_asOf)}</div>
+          <div class="k">Monitor built</div><div class="v num" style="font-size:11px">${esc((m.built_at_utc||'').replace('T',' ').replace('Z',' UTC'))}</div>
+          <div class="k">Benchmark feed</div><div class="v">${h.benchmark_ok?'<span class="pos">ok</span>':'<span class="neg">unavailable</span>'}</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div class="card-title">Weight changes since last build</div><div class="card-note">${ch.available?('turnover '+pct(ch.turnover,1)+(ch.asOf_prev?' · prev '+fmtDate(ch.asOf_prev):'')):'no prior build to compare'}</div></div>
+      ${ch.available && ch.deltas.length ? `<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Ticker</th><th class="r">From</th><th class="r">To</th><th class="r">Δ</th></tr></thead>
+        <tbody>${ch.deltas.map(d=>`<tr><td><strong>${esc(d.ticker)}</strong></td><td class="r num">${pct(d.from,1)}</td><td class="r num">${pct(d.to,1)}</td><td class="r num ${signClass(d.delta)}">${pctSigned(d.delta,2)}</td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="muted" style="font-size:13px">No weight changes since the previous build (the model rebalances weekly on Fridays).</div>'}
+    </div>`;
+}
+
+function renderMethod(){
+  const m=DS.meta, sm=DS.weights.sleeve_meta, oc=DS.stats.overlay_compare, rg=DS.regime;
+  const sleeveRow=c=>`<tr><td>${sleeveChip(c)} <strong>${esc(sm[c].name)}</strong></td><td class="r num">${pct(sm[c].alloc,0)}</td><td style="font-size:12.5px;color:var(--t2)">${esc(sm[c].desc)}</td></tr>`;
+  const cmp=k=>`<tr><td>${k}</td><td class="r num">${k==='max_dd'?pct(oc.ungated[k]):k==='total_return'?pctSigned(oc.ungated[k]):num(oc.ungated[k],2)}</td>
+    <td class="r num">${k==='max_dd'?pct(oc.gate_only[k]):k==='total_return'?pctSigned(oc.gate_only[k]):num(oc.gate_only[k],2)}</td>
+    <td class="r num"><strong>${k==='max_dd'?pct(oc.deployed[k]):k==='total_return'?pctSigned(oc.deployed[k]):num(oc.deployed[k],2)}</strong></td></tr>`;
+  const el=document.getElementById('tabContent');
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title" style="margin-bottom:10px">What this strategy is</div>
+      <p style="font-size:14px;line-height:1.7;color:var(--t2);max-width:860px">
+        <strong>${esc(m.name)}</strong> is a systematic, rules-based global ETF rotation model. It blends four independent
+        sleeves — US sector breadth, cross-asset trend, thematic momentum and European sector breadth — and overlays two
+        risk controls: a breadth de-risk gate and an emerging-market tilt. The book rebalances weekly (Friday close).
+        Signals are computed on point-in-time ETF constituents and prices by the upstream engine; this monitor consumes
+        that output and recomputes the analytics shown here. The strategy has run since ${fmtDate(m.inception)}.
+      </p>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Sleeves &amp; overlays</div>
+      <table class="tbl"><thead><tr><th>Sleeve</th><th class="r">Target</th><th>Mechanism</th></tr></thead>
+      <tbody>${['A','B','C','D'].map(sleeveRow).join('')}
+        <tr><td>${sleeveChip('TILT')} <strong>${esc(sm.TILT.name)}</strong></td><td class="r num">${pct(sm.TILT.alloc_tilt||0.1,0)}</td><td style="font-size:12.5px;color:var(--t2)">${esc(sm.TILT.desc)}</td></tr>
+        <tr><td><span class="sl-chip" style="background:#8a8a82">GATE</span> <strong>Breadth de-risk</strong></td><td class="r num">—</td><td style="font-size:12.5px;color:var(--t2)">Below ${pct(rg.off_threshold,0)} S&amp;P 500 breadth, shift ${pct(rg.derisk_fraction,0)} of NAV to ${rg.fallback_ticker}; re-engage above ${pct(rg.on_threshold,0)}.</td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Value of the overlays (backtest, engine figures)</div>
+      <table class="tbl"><thead><tr><th>Metric</th><th class="r">Ungated blend</th><th class="r">+ De-risk gate</th><th class="r">+ EM tilt (deployed)</th></tr></thead>
+      <tbody>${['sharpe','cagr','total_return','max_dd'].map(cmp).join('')}</tbody></table>
+      <div class="card-note" style="margin-top:8px">The de-risk gate is the material risk control: it lifts Sharpe and roughly halves max drawdown. The EM tilt is a marginal, weak-evidence addition.</div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">Honest caveats</div>
+        <ul style="margin:0 0 0 18px;font-size:13px;line-height:1.8;color:var(--t2)">
+          <li><strong>Paper model.</strong> No live capital; not investment advice or an offer.</li>
+          <li><strong>Partly in-sample.</strong> Sleeve and overlay parameters were selected on this history; live results will differ.</li>
+          <li><strong>Costs.</strong> Backtest includes only a ${m.cost_assumption_bps} bps switch cost — no slippage, spread or market impact.</li>
+          <li><strong>EM tilt</strong> rests on few distinct golden-cross events in 7.5 years; treat as a low-conviction positional bet.</li>
+          <li><strong>European sleeve</strong> trades EUR-listed instruments; signal-vs-trade instrument can differ (UCITS sibling).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">Data &amp; pipeline</div>
+        <ul style="margin:0 0 0 18px;font-size:13px;line-height:1.8;color:var(--t2)">
+          <li>Model weights, equity and regime are fetched daily from the <a href="https://github.com/${esc(m.source_repo)}" target="_blank" rel="noopener">${esc(m.source_repo)}</a> engine.</li>
+          <li>Benchmarks (S&amp;P 500, 60/40) are fetched independently via yfinance and aligned to the model's dates.</li>
+          <li>Every build validates feed freshness, regime consistency and a statistics reconciliation (see Data Health).</li>
+          <li>The dashboard reads a single normalised dataset; nothing is hand-edited.</li>
+        </ul>
+      </div>
+    </div>`;
+}
+
+/* ============================ footer ============================ */
+function renderFooter(){
+  const m=DS.meta;
+  document.getElementById('footer').innerHTML =
+    `<strong>Navigo Investment Management Pte. Ltd.</strong> — internal model-portfolio monitor. `+
+    `This is a <strong>paper model portfolio</strong> for research and monitoring; it is not investment advice, an offer, or a record of actual trading. `+
+    `Backtested results are hypothetical, partly in-sample, and net of an assumed ${m.cost_assumption_bps} bps switch cost only. Past performance does not guarantee future results.<br>`+
+    `Source engine: <a href="https://github.com/${esc(m.source_repo)}" target="_blank" rel="noopener">${esc(m.source_repo)}</a> @ ${esc((m.source_commit||'—').slice(0,7))} · built ${esc(m.built_at_utc)} · data as of ${fmtDate(m.asOf)}.`;
+}
+
+document.addEventListener('DOMContentLoaded', bootstrap);
+window.setTab=setTab; window.setOvWin=setOvWin;
+</script>
+</body>
+</html>
