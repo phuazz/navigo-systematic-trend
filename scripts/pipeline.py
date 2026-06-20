@@ -55,8 +55,10 @@ def build_dataset(portfolio_id: str, *, local: str | None = None,
     stats = adapter.build_stats(model_bt, model_full, overlay, reg, benchmarks)
     regime = adapter.build_regime(overlay, live)
     risk = adapter.build_risk(price_series, weights, reg)
-    attribution = adapter.build_attribution(equity, weights, price_series, reg, risk["by_ticker"])
+    attribution = adapter.build_attribution(equity, weights, price_series, reg,
+                                            risk["by_ticker"], ref_date=model_full.index[-1])
     pnl = adapter.build_pnl(model_full, benchmarks)
+    holdings_prices = adapter.build_holdings_prices(bundle["holdings_prices_1y.json"], price_series, weights)
     signals = adapter.build_signals(weights, price_meta, reg)
     monthly = metrics.monthly_matrix(model_full)
 
@@ -82,7 +84,8 @@ def build_dataset(portfolio_id: str, *, local: str | None = None,
     dataset = {
         "meta": meta, "weights": weights, "equity": equity, "stats": stats,
         "regime": regime, "attribution": attribution, "risk": risk, "pnl": pnl,
-        "signals": signals, "monthly": monthly, "changes": changes, "health": health,
+        "holdings_prices": holdings_prices, "signals": signals,
+        "monthly": monthly, "changes": changes, "health": health,
     }
     _report(dataset)
     return dataset

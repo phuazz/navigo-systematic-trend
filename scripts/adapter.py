@@ -18,7 +18,21 @@ import pandas as pd
 import metrics
 from config import TRADING_DAYS_PER_YEAR as TRADING_DAYS
 
-HORIZONS = [("1D", 1), ("1W", 5), ("1M", 21)]  # YTD / SI handled separately
+HZ_KEYS = ("1D", "1W", "1M")  # YTD / SI handled separately
+
+
+def _anchors(ref) -> dict:
+    """Calendar-anchored window starts for a reference date.
+
+    1-Day anchors on the previous calendar weekday (skipping weekends) so a
+    single session is measured consistently across markets and a non-trading
+    reference day reads flat — rather than each series' immediately-preceding
+    bar, which would span holidays unevenly across a multi-market book.
+    """
+    ref = pd.Timestamp(ref)
+    return {"1D": metrics.prev_weekday(ref),
+            "1W": ref - pd.Timedelta(days=7),
+            "1M": ref - pd.DateOffset(months=1)}
 
 
 # --- small helpers ---------------------------------------------------------
@@ -256,12 +270,6 @@ def build_stats(model_bt, model_full, overlay, registry, benchmarks) -> dict:
 
 
 # --- attribution -----------------------------------------------------------
-def _ret_over(s: pd.Series, bars: int) -> float | None:
-    if len(s) <= bars:
-        return None
-    return float(s.iloc[-1] / s.iloc[-1 - bars] - 1.0)
-
-
 def _ret_ytd(s: pd.Series) -> float | None:
     if len(s) < 2:
         return None
@@ -271,10 +279,14 @@ def _ret_ytd(s: pd.Series) -> float | None:
     return float(s.iloc[-1] / base - 1.0)
 
 
-def build_attribution(equity, weights, prices, registry, risk_by_ticker=None) -> dict:
+def build_attribution(equity, weights, prices, registry, risk_by_ticker=None, ref_date=None) -> dict:
     idx = pd.to_datetime(equity["dates"])
     sleeves = registry["sleeves"]
     tilt_on = weights["tilt_on"]
+    sref = idx[-1]                                   # sleeves: their own (backtest) last date
+    sanc = _anchors(sref)
+    eref = pd.Timestamp(ref_date) if ref_date else sref   # ETFs/benchmarks: global (live) date
+    eanc = _anchors(eref)
 
     # Sleeve-level: allocation-weighted sleeve return (approximate decomposition).
     sleeve_attr = {}
@@ -283,15 +295,15 @@ def build_attribution(equity, weights, prices, registry, risk_by_ticker=None) ->
         cfg = sleeves[code]
         alloc = cfg.get("alloc_tilt" if tilt_on else "alloc", 0.0)
         row = {"name": cfg["name"], "alloc": _r(alloc, 4), "color": cfg.get("color")}
-        for hk, bars in HORIZONS:
-            rr = _ret_over(s, bars)
+        for hk in HZ_KEYS:
+            rr = metrics.windowed_return(s, sref, sanc[hk])
             row[hk] = {"ret": _r(rr, 5), "contrib": _r(alloc * rr, 5) if rr is not None else None}
         ry, rs = _ret_ytd(s), float(s.iloc[-1] / s.iloc[0] - 1.0)
         row["YTD"] = {"ret": _r(ry, 5), "contrib": _r(alloc * ry, 5) if ry is not None else None}
         row["SI"] = {"ret": _r(rs, 5), "contrib": _r(alloc * rs, 5)}
         sleeve_attr[code] = row
 
-    # ETF-level: current weight x proxy return over window (current-weight approx).
+    # ETF-level: current weight x proxy return over a calendar-anchored window.
     etf_attr = []
     for r in weights["rows"]:
         w = r["weight"] or 0.0
@@ -305,8 +317,8 @@ def build_attribution(equity, weights, prices, registry, risk_by_ticker=None) ->
         rk = (risk_by_ticker or {}).get(r["ticker"])
         if rk:
             row["vol"], row["risk_pct"], row["ret_1y"] = rk["vol"], rk["risk_pct"], rk["ret_1y"]
-        for hk, bars in HORIZONS:
-            rr = _ret_over(s, bars)
+        for hk in HZ_KEYS:
+            rr = metrics.windowed_return(s, eref, eanc[hk])
             row[hk] = {"ret": _r(rr, 5), "contrib": _r(w * rr, 5) if rr is not None else None}
         ry = _ret_ytd(s)
         row["YTD"] = {"ret": _r(ry, 5), "contrib": _r(w * ry, 5) if ry is not None else None}
@@ -361,24 +373,25 @@ def build_changes(weights, prev_dataset) -> dict:
 
 # --- short-horizon P&L (model vs benchmarks) -------------------------------
 def build_pnl(model_full: pd.Series, benchmarks: dict) -> dict:
-    """Intraday / 1-day / 1-week return for the model and each benchmark.
+    """1-day / 1-week / 1-month return for the model and each benchmark.
 
-    The model marks once daily at close, so 'Intraday' is the latest mark-to-market
-    day, '1-Day' the prior completed session, and '1-Week' the trailing five
-    sessions. Benchmarks are indexed identically (they carry the live date too).
+    All windows are calendar-anchored off one global reference date (the model's
+    latest mark): 1-Day anchors on the previous calendar weekday, so it is a true
+    single session and the benchmarks (which carry the live date) compare like for
+    like. The model marks once daily at close, so there is no separate intraday
+    figure — the 1-Day already reflects the latest mark-to-market session.
     """
+    ref = model_full.index[-1]
+    anc = _anchors(ref)
+
     def rets(s: pd.Series) -> dict:
-        n = len(s)
-        return {
-            "intraday": _r(float(s.iloc[-1] / s.iloc[-2] - 1.0), 5) if n >= 2 else None,
-            "1D": _r(float(s.iloc[-2] / s.iloc[-3] - 1.0), 5) if n >= 3 else None,
-            "1W": _r(float(s.iloc[-1] / s.iloc[-6] - 1.0), 5) if n >= 6 else None,
-        }
+        return {k: _r(metrics.windowed_return(s, ref, anc[k]), 5) for k in HZ_KEYS}
+
     out = {"model": rets(model_full)}
     for k, bm in (benchmarks or {}).items():
         out[k] = rets(metrics.equity_series(bm["dates"], bm["equity"]))
     sources = list(out.keys())
-    return {p: {src: out[src][p] for src in sources} for p in ("intraday", "1D", "1W")}
+    return {p: {src: out[src][p] for src in sources} for p in HZ_KEYS}
 
 
 # --- risk decomposition ----------------------------------------------------
@@ -428,3 +441,58 @@ def build_risk(price_series: dict, weights: dict, registry: dict) -> dict:
             "note": "Annualised from the most recent ~1y of daily returns. Risk contribution "
                     "= w*(Sigma w)/sigma_p, summing to 100%. European holdings are priced in "
                     "local currency."}
+
+
+# --- per-holding price panel (expandable row charts) -----------------------
+def build_holdings_prices(holdings_raw: dict, price_series: dict, weights: dict, *, tail=252) -> dict:
+    """Close + 50/200-day MA series and trend signals per current holding.
+
+    Engine-covered tickers reuse the engine's own MA series (full 200-day cover);
+    the US/Europe sector proxies use the yfinance close panel with MAs computed
+    here. Feeds the expandable price chart on the Allocation table.
+    """
+    hp = (holdings_raw or {}).get("prices", {})
+
+    def _last(a):
+        for v in reversed(a):
+            if v is not None and (not isinstance(v, float) or math.isfinite(v)):
+                return v
+        return None
+
+    out = {}
+    for r in weights["rows"]:
+        if (r.get("weight") or 0) <= 1e-4:
+            continue
+        t, tradeAs = r["ticker"], r.get("tradeAs", r["ticker"])
+        src = hp.get(t) or hp.get(tradeAs)
+        if src and src.get("ma200"):
+            dates = src["dates"][-tail:]; close = src["prices"][-tail:]
+            ma50 = (src.get("ma50") or [None] * len(src["prices"]))[-tail:]
+            ma200 = (src.get("ma200") or [None] * len(src["prices"]))[-tail:]
+        else:
+            s = price_series.get(t)
+            if s is None:
+                s = price_series.get(tradeAs)
+            if s is None:
+                continue
+            ma50s, ma200s = s.rolling(50).mean(), s.rolling(200).mean()
+            dates = [d.strftime("%Y-%m-%d") for d in s.index[-tail:]]
+            close = [float(v) for v in s.values[-tail:]]
+            ma50 = [None if pd.isna(v) else float(v) for v in ma50s.values[-tail:]]
+            ma200 = [None if pd.isna(v) else float(v) for v in ma200s.values[-tail:]]
+        c, m50, m200 = _last(close), _last(ma50), _last(ma200)
+        c0 = next((v for v in close if v is not None), None)
+        out[t] = {
+            "dates": dates,
+            "close": [_r(v, 4) for v in close],
+            "ma50": [_r(v, 4) for v in ma50],
+            "ma200": [_r(v, 4) for v in ma200],
+            "ccy": "EUR" if str(tradeAs).endswith(".DE") else ("CNY" if str(t).endswith(".SZ") else "USD"),
+            "signals": {
+                "above_200": bool(c is not None and m200 is not None and c > m200),
+                "golden": bool(m50 is not None and m200 is not None and m50 > m200),
+                "vs_ma200": _r(c / m200 - 1, 4) if (c and m200) else None,
+                "mom_1y": _r(c / c0 - 1, 4) if (c and c0) else None,
+            },
+        }
+    return out

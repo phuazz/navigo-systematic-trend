@@ -175,6 +175,34 @@ def monthly_matrix(eq: pd.Series) -> dict:
 
 
 # --- benchmark-relative ----------------------------------------------------
+def prev_weekday(ref) -> pd.Timestamp:
+    """The calendar weekday immediately before `ref`, skipping Sat/Sun.
+
+    Monday anchors on the previous Friday. This is what makes a 1-day window a
+    true single session: anchoring on the immediately-preceding *bar* would span
+    a holiday or a weekend unevenly across a multi-market book, whereas a fixed
+    calendar weekday + 'last bar on or before' makes a non-trading day read flat.
+    """
+    d = pd.Timestamp(ref).normalize() - pd.Timedelta(days=1)
+    while d.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+        d -= pd.Timedelta(days=1)
+    return d
+
+
+def asof(series: pd.Series, date) -> float | None:
+    """Last value on or before `date` (None if the series starts after it)."""
+    sub = series[series.index <= pd.Timestamp(date)]
+    return float(sub.iloc[-1]) if len(sub) else None
+
+
+def windowed_return(series: pd.Series, ref, start) -> float | None:
+    """Return from the last bar on/before `start` to the last bar on/before `ref`."""
+    e, s = asof(series, ref), asof(series, start)
+    if e is None or s is None or s == 0:
+        return None
+    return e / s - 1.0
+
+
 def capture_ratios(model: pd.Series, bench: pd.Series) -> dict:
     """Up/down capture vs a benchmark, Morningstar monthly convention."""
     mm = monthly_returns(model)

@@ -33,8 +33,9 @@ npx serve docs                             # preview
 
 ## File sizes
 
-`template.html` is ~50 KB and safe to read. `docs/index.html` is a baked copy of it.
-`docs/data/portfolio-*.json` is ~280 KB (full equity histories) — read structure, not blindly.
+`template.html` is ~70 KB and safe to read. `docs/index.html` is a baked copy of it.
+`docs/data/portfolio-*.json` is ~450 KB (full equity histories + per-holding price panels for
+the expandable Allocation charts) — read structure, not blindly.
 
 ## Data integrity philosophy
 

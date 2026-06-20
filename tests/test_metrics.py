@@ -58,6 +58,30 @@ def test_monthly_matrix_has_year_and_months():
     assert abs(mm[2025]["YEAR"] - (prod - 1.0)) < 1e-9
 
 
+def test_prev_weekday_skips_weekend():
+    # Monday anchors on the previous Friday; a midweek day on the day before.
+    assert metrics.prev_weekday("2026-06-15").strftime("%Y-%m-%d") == "2026-06-12"  # Mon -> Fri
+    assert metrics.prev_weekday("2026-06-18").strftime("%Y-%m-%d") == "2026-06-17"  # Thu -> Wed
+
+
+def test_prev_weekday_year_boundary():
+    # 2026-01-01 is a Thursday -> previous weekday is 2025-12-31 (Wednesday).
+    assert metrics.prev_weekday("2026-01-01").strftime("%Y-%m-%d") == "2025-12-31"
+    # 2026-01-05 is a Monday -> previous weekday is 2026-01-02 (Friday).
+    assert metrics.prev_weekday("2026-01-05").strftime("%Y-%m-%d") == "2026-01-02"
+
+
+def test_windowed_return_calendar_anchor_and_holiday_flat():
+    idx = pd.to_datetime(["2026-06-15", "2026-06-16", "2026-06-17"])  # Mon, Tue, Wed
+    s = pd.Series([1.0, 1.05, 1.10], index=idx)
+    # 1-day ending Wed anchors on Tue -> 1.10/1.05.
+    r = metrics.windowed_return(s, "2026-06-17", metrics.prev_weekday("2026-06-17"))
+    assert abs(r - (1.10 / 1.05 - 1)) < 1e-9
+    # Reference on a non-trading Thursday: end and anchor both fall back to Wed -> flat.
+    flat = metrics.windowed_return(s, "2026-06-18", metrics.prev_weekday("2026-06-18"))
+    assert flat == 0.0
+
+
 def test_capture_ratios_directional():
     bench = ramp("2022-01-01", "2024-01-01", daily=0.0005)
     model = ramp("2022-01-01", "2024-01-01", daily=0.0003)  # tracks at lower slope

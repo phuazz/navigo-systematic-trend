@@ -62,8 +62,11 @@ new registry file (and an adapter if its source shape differs) — not a restruc
 **Overview** · **Allocation** · **Performance** · **Attribution** · **Risk & Regime** ·
 **Signals** · **Data Health** · **Methodology** — built so a performance analyst, a CIO,
 and a quant PM each find what they look for: benchmark-relative performance and capture;
-exposures, concentration and the regime state; sleeve/ETF attribution, correlation and
-signal transparency; and first-class data-integrity surfacing.
+exposures, concentration and the regime state; sleeve/ETF attribution, a risk/return scatter
+and risk-contribution decomposition, correlation and signal transparency; and first-class
+data-integrity surfacing. Allocation rows are tap-to-expand, revealing a per-holding price
+chart (close + 50/200-day MA) and trend signals. Short-horizon P&L (1-day / 1-week / 1-month
+vs benchmarks) is calendar-weekday anchored, so an uneven multi-market calendar reads correctly.
 
 ## Build & develop
 

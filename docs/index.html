@@ -118,6 +118,15 @@ a{color:var(--b);text-decoration:none}
 .kv .k{color:var(--t3)} .kv .v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .callout{background:var(--bg3);border-left:3px solid var(--bd-strong);padding:12px 16px;border-radius:6px;font-size:13px;color:var(--t2);line-height:1.6}
 .loading{padding:80px 20px;text-align:center;color:var(--t3);font-size:15px}
+.hint{background:var(--b-bg);border:1px solid var(--b-bg2);color:var(--b);font-size:12.5px;padding:9px 14px;border-radius:8px;margin-bottom:14px}
+.row-exp{cursor:pointer}
+.row-exp:hover{background:var(--bg-hover)}
+.exp-ind{display:inline-block;width:12px;color:var(--t3);font-size:9px}
+.exp-cell{background:var(--bg3);padding:0 !important}
+.exp-panel{padding:16px 18px}
+.chip{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;margin:0 6px 8px 0;background:var(--bg2);border:1px solid var(--bd);font-variant-numeric:tabular-nums}
+.chip-bull{background:var(--g-bg);color:var(--g);border-color:rgba(26,135,84,0.3)}
+.chip-bear{background:var(--r-bg);color:var(--r);border-color:rgba(192,57,43,0.3)}
 
 @media(max-width:1100px){.kpi-strip{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
@@ -381,7 +390,7 @@ function renderOverview(){
 function setOvWin(k){ state.perfWindow=k; document.getElementById('ovWinBtns').innerHTML=windowBtns(k,['3M','6M','YTD','1Y','SI'],'setOvWin'); buildEquityChart('ovEquity',{window:k,showBenchmarks:true,showDrawdown:true,showRegime:true,showLive:true}); }
 
 function renderPnlStrip(elId){
-  const cards=[['intraday','Intraday P&L'],['1D','1-Day P&L'],['1W','1-Week P&L']];
+  const cards=[['1D','1-Day P&L'],['1W','1-Week P&L'],['1M','1-Month P&L']];
   document.getElementById(elId).innerHTML = cards.map(([k,lab])=>{
     const p=DS.pnl[k]||{}, m=p.model, spy=p.SPY, ex=(isNum(m)&&isNum(spy))?m-spy:null;
     return `<div class="kpi"><div class="kpi-label">${lab}</div>
@@ -416,6 +425,7 @@ function renderAllocation(){
     <div class="card">
       <div class="card-h"><div class="card-title">Model portfolio — target weights</div>
         <div class="card-note">${w.concentration.n_holdings} holdings · HHI ${num(w.concentration.hhi,3)} · top-5 ${pct(w.concentration.top5,0)} · cash ${pct(w.cash_pct,1)}</div></div>
+      <div class="hint">▸ Tap any row to expand an interactive price chart with 50/200-day moving averages and trend signals.</div>
       <div style="overflow-x:auto"><table class="tbl" id="allocTbl"></table></div>
       <div class="card-note" style="margin-top:10px">“How weight is built” = sleeve allocation × within-sleeve weight. EEM also carries the 10% EM tilt funded from sleeve B. Trade-as shows the instrument actually held (the breadth signal may be computed on a UCITS sibling).</div>
     </div>`;
@@ -437,19 +447,60 @@ function exposureBars(elId, mapping, colorFn, labelFn){
 }
 function renderAllocTable(){
   const rows=DS.weights.rows.filter(r=>(r.weight||0)>1e-4);
+  const hp=DS.holdings_prices||{};
   const buildStr = r => r.build.map(b=> b.sleeve==='TILT' ? `Tilt ${pct(b.contrib,1)}` :
     b.sleeve==='Overlay' ? `Overlay ${pct(b.contrib,1)}` : `${b.sleeve}: ${b.alloc}×${pct(b.within,1)}=${pct(b.contrib,1)}`).join(' + ');
-  const body = rows.map(r=>`<tr>
-    <td>${sleeveChip(r.sleeve)} <strong>${esc(r.ticker)}</strong></td>
+  const body = rows.map(r=>{ const can=!!hp[r.ticker];
+    return `<tr class="${can?'row-exp':''}" id="arow-${esc(r.ticker)}" ${can?`onclick="toggleHolding('${esc(r.ticker)}')"`:''}>
+    <td><span class="exp-ind" id="ind-${esc(r.ticker)}">${can?'▸':''}</span>${sleeveChip(r.sleeve)} <strong>${esc(r.ticker)}</strong></td>
     <td><span style="font-size:12.5px">${esc(r.name)}</span><br><span class="muted" style="font-size:10.5px">${esc(r.theme)} · ${esc(r.geo)}</span></td>
     <td class="c"><span class="muted num">${esc(r.tradeAs)}</span></td>
     <td class="num" style="font-size:11px;color:var(--t2)">${buildStr(r)}</td>
     <td class="r"><strong class="num">${pct(r.weight,1)}</strong></td>
     <td class="r" style="width:90px"><div class="bar-track"><div class="bar-fill" style="width:${(r.weight/0.16*100).toFixed(0)}%;background:${SLEEVE_COLORS[r.sleeve]||'#8a8a82'}"></div></div></td>
-  </tr>`).join('');
+  </tr>`; }).join('');
   document.getElementById('allocTbl').innerHTML =
     `<thead><tr><th>ETF</th><th>Description</th><th class="c">Trade as</th><th>How weight is built</th><th class="r">Weight</th><th></th></tr></thead><tbody>${body}
      <tr class="sum"><td colspan="4">Total deployed</td><td class="r num">${pct(DS.weights.invested_pct,1)}</td><td></td></tr></tbody>`;
+}
+function toggleHolding(t){
+  const existing=document.getElementById('exp-'+t), ind=document.getElementById('ind-'+t);
+  if(existing){ existing.remove(); if(ind) ind.textContent='▸'; return; }
+  const row=document.getElementById('arow-'+t); if(!row) return;
+  const tr=document.createElement('tr'); tr.id='exp-'+t;
+  tr.innerHTML=`<td class="exp-cell" colspan="6"><div class="exp-panel">${holdingPanelHTML(t)}</div></td>`;
+  row.parentNode.insertBefore(tr, row.nextSibling);
+  if(ind) ind.textContent='▾';
+  buildHoldingChart(t);
+}
+function holdingPanelHTML(t){
+  const h=DS.holdings_prices[t], r=DS.weights.rows.find(x=>x.ticker===t)||{}, s=h.signals||{};
+  const rk=(DS.risk.by_ticker||{})[t]||{};
+  const chips=[
+    `<span class="chip ${s.above_200?'chip-bull':'chip-bear'}">${s.above_200?'▲':'▼'} Close ${s.above_200?'>':'<'} 200-MA</span>`,
+    `<span class="chip ${s.golden?'chip-bull':'chip-bear'}">${s.golden?'Golden':'Death'} cross</span>`,
+    `<span class="chip">vs 200-MA ${pctSigned(s.vs_ma200)}</span>`,
+    `<span class="chip">1Y ${pctSigned(s.mom_1y)}</span>`,
+    `<span class="chip">Weight ${pct(r.weight,1)}</span>`,
+    isNum(rk.risk_pct)?`<span class="chip">Risk ${pct(rk.risk_pct,1)}</span>`:'',
+    isNum(rk.vol)?`<span class="chip">Vol ${pct(rk.vol,0)}</span>`:'',
+  ].join('');
+  return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <div><strong>${esc(t)}</strong> <span class="muted" style="font-size:12px">${esc(r.name||'')} · trades as ${esc(r.tradeAs||t)} (${esc(h.ccy)})</span></div>
+      <div>${sleeveChip(r.sleeve)} <span class="muted" style="font-size:11px">${esc((DS.weights.sleeve_meta[r.sleeve]||{}).name||'')}</span></div>
+    </div>
+    <div style="margin-bottom:10px">${chips}</div>
+    <div id="hchart-${esc(t)}" style="height:240px"></div>`;
+}
+function buildHoldingChart(t){
+  const h=DS.holdings_prices[t];
+  const traces=[
+    {type:'scatter',mode:'lines',name:'Close',x:h.dates,y:h.close,line:{color:'#1a1a18',width:1.7},hovertemplate:'%{x|%-d %b %y}<br>Close %{y}<extra></extra>'},
+    {type:'scatter',mode:'lines',name:'50-MA',x:h.dates,y:h.ma50,line:{color:'#b45309',width:1.3},hovertemplate:'50-MA %{y}<extra></extra>'},
+    {type:'scatter',mode:'lines',name:'200-MA',x:h.dates,y:h.ma200,line:{color:'#be185d',width:1.3,dash:'dot'},hovertemplate:'200-MA %{y}<extra></extra>'},
+  ];
+  plot(document.getElementById('hchart-'+t),traces,baseLayout({showlegend:true,legend:{orientation:'h',x:0,y:1.14,font:{size:10}},
+    margin:{t:8,b:28,l:48,r:12},yaxis:{gridcolor:'#ededea',tickfont:{size:9,family:'JetBrains Mono'},zeroline:false}}));
 }
 
 /* ============================ client-side stats (model + benchmarks) ============================ */
