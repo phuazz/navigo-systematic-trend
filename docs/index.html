@@ -131,6 +131,8 @@ a{color:var(--b);text-decoration:none}
 .chip{display:inline-block;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;margin:0 6px 8px 0;background:var(--bg2);border:1px solid var(--bd);font-variant-numeric:tabular-nums}
 .chip-bull{background:var(--g-bg);color:var(--g);border-color:rgba(26,135,84,0.3)}
 .chip-bear{background:var(--r-bg);color:var(--r);border-color:rgba(192,57,43,0.3)}
+.act{display:inline-block;padding:1px 6px;border-radius:4px;font-size:9.5px;font-weight:700;letter-spacing:0.3px;color:#fff;min-width:36px;text-align:center}
+.act-new{background:#1a8754} .act-add{background:#22a366} .act-trim{background:#b45309} .act-exit{background:#c0392b} .act-initial{background:#8a8a82}
 
 @media(max-width:1100px){.kpi-strip{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
@@ -160,9 +162,10 @@ const DATA_FILE = 'data/portfolio-navigo-systematic-trend.json';
 let DS = null;
 const state = { tab:'overview', perfWindow:'YTD', perfLog:false, attrHorizon:'1M', attrView:'theme', riskWindow:'SI', benchmarks:null, ovDonut:'sleeve', ovMoversHz:'1W' };
 const PALETTE = ['#2563eb','#1a8754','#b45309','#7c3aed','#0891b2','#be185d','#a16207','#16a34a','#9333ea','#0d9488','#dc2626','#8a8a82'];
+const WIN_OV=['1W','1M','3M','6M','YTD','1Y','SI'], WIN_PERF=['1W','1M','3M','6M','YTD','1Y','3Y','SI'], WIN_RISK=['1W','1M','6M','YTD','1Y','3Y','SI'];
 
 const TABS = [
-  ['overview','Overview'], ['attribution','Attribution'], ['allocation','Allocation'], ['performance','Performance'],
+  ['overview','Overview'], ['attribution','Attribution'], ['allocation','Allocation'], ['trades','Trades'], ['performance','Performance'],
   ['risk','Risk & Regime'], ['signals','Signals'], ['health','Data Health'], ['method','Methodology'],
 ];
 const SLEEVE_COLORS = {A:'#2563eb',B:'#1a8754',C:'#b45309',D:'#7c3aed',TILT:'#0891b2',CASH:'#8a8a82'};
@@ -265,7 +268,7 @@ function setTab(k){ state.tab=k; renderTabBar(); renderTab(); window.scrollTo({t
 function renderTab(){
   const fn = ({overview:renderOverview, allocation:renderAllocation, performance:renderPerformance,
     attribution:renderAttribution, risk:renderRisk, signals:renderSignals, health:renderHealth,
-    method:renderMethod})[state.tab] || (()=>'');
+    method:renderMethod, trades:renderTrades})[state.tab] || (()=>'');
   document.getElementById('tabContent').innerHTML = '<div></div>';
   fn();
 }
@@ -275,7 +278,7 @@ function sliceWindow(dates, key){
   const n=dates.length, last=new Date(dates[n-1]+'T00:00:00');
   if(key==='SI') return 0;
   if(key==='YTD'){ const ys=dates.findIndex(d=>d.slice(0,4)===dates[n-1].slice(0,4)); return Math.max(0,ys-1); }
-  const days={'1M':30,'3M':91,'6M':183,'1Y':365,'3Y':1095}[key]||99999;
+  const days={'1W':7,'1M':30,'3M':91,'6M':183,'1Y':365,'3Y':1095}[key]||99999;
   const cut=new Date(last); cut.setDate(cut.getDate()-days);
   let i=dates.findIndex(d=> new Date(d+'T00:00:00')>=cut); return i<0?0:i;
 }
@@ -331,6 +334,10 @@ function buildEquityChart(elId, opt){
     shapes.push({type:'line',xref:'x',yref:'paper',x0:oos,x1:oos,y0:0,y1:1,line:{color:'#1a1a18',width:1.2,dash:'dot'}});
     anns.push({x:oos,xref:'x',y:1.02,yref:'paper',text:'Out-of-sample →',showarrow:false,font:{size:9,color:'#5c5c56'},xanchor:'left'});
   }
+  if(opt.showRegime && DS.trades && DS.trades.log){   // tie trades to performance: thin verticals at rebalances
+    DS.trades.log.forEach(e=>{ if(e.type==='rebalance' && e.date>=startDate && e.date<=endDate)
+      shapes.push({type:'line',xref:'x',yref:'paper',x0:e.date,x1:e.date,y0:0,y1:1,line:{color:'rgba(37,99,235,0.22)',width:1}}); });
+  }
   if(shapes.length) layoutExtra.shapes=shapes;
   if(anns.length) layoutExtra.annotations=anns;
   plot(document.getElementById(elId), traces, baseLayout(layoutExtra));
@@ -377,7 +384,7 @@ function renderOverview(){
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin:2px 0 10px;flex-wrap:wrap"><span class="muted" style="font-size:11px">Benchmarks</span><span id="benchSel" style="display:inline-flex;gap:6px;flex-wrap:wrap"></span></div>
       <div id="ovEquity" class="chart" style="height:360px"></div>
-      <div class="card-note" style="margin-top:8px">Green solid = deployed model (breadth de-risk gate + EM tilt). Dotted = live mark-to-market this week. Red bands = risk-off periods; red shaded area = model drawdown (right axis). Dotted vertical = out-of-sample start (${fmtDate(DS.meta.oos_start)}).</div>
+      <div class="card-note" style="margin-top:8px">Green solid = deployed model (breadth de-risk gate + EM tilt). Dotted = live mark-to-market this week. Red bands = risk-off periods; red shaded area = model drawdown (right axis). Dotted vertical = out-of-sample start (${fmtDate(DS.meta.oos_start)}); thin blue verticals = rebalance dates.</div>
     </div>
     <div class="grid2">
       <div class="card">
@@ -405,14 +412,14 @@ function renderOverview(){
     </div>`;
   renderPnlStrip('ovPnl');
   document.getElementById('benchSel').innerHTML = benchChips();
-  document.getElementById('ovWinBtns').innerHTML = windowBtns(state.perfWindow,['3M','6M','YTD','1Y','SI'],'setOvWin');
+  document.getElementById('ovWinBtns').innerHTML = windowBtns(state.perfWindow,WIN_OV,'setOvWin');
   buildEquityChart('ovEquity',{window:state.perfWindow,showBenchmarks:true,showDrawdown:true,showRegime:true,showLive:true});
   document.getElementById('ovDonutBtns').innerHTML = donutBtns();
   renderOvDonut();
   document.getElementById('ovMoversBtns').innerHTML = windowBtns(state.ovMoversHz,['1D','1W','1M','YTD'],'setOvMoversHz');
   renderMovers('ovMovers', state.ovMoversHz);
 }
-function setOvWin(k){ state.perfWindow=k; document.getElementById('ovWinBtns').innerHTML=windowBtns(k,['3M','6M','YTD','1Y','SI'],'setOvWin'); buildEquityChart('ovEquity',{window:k,showBenchmarks:true,showDrawdown:true,showRegime:true,showLive:true}); }
+function setOvWin(k){ state.perfWindow=k; document.getElementById('ovWinBtns').innerHTML=windowBtns(k,WIN_OV,'setOvWin'); buildEquityChart('ovEquity',{window:k,showBenchmarks:true,showDrawdown:true,showRegime:true,showLive:true}); }
 
 function renderPnlStrip(elId){
   const cards=[['1D','1-Day P&L'],['1W','1-Week P&L'],['1M','1-Month P&L']];
@@ -659,7 +666,7 @@ function renderPerformance(){
       <div style="overflow-x:auto" id="perfHeatmap"></div>
     </div>`;
   document.getElementById('benchSel').innerHTML = benchChips();
-  document.getElementById('perfWinBtns').innerHTML = windowBtns(state.perfWindow,['3M','6M','YTD','1Y','3Y','SI'],'setPerfWin');
+  document.getElementById('perfWinBtns').innerHTML = windowBtns(state.perfWindow,WIN_PERF,'setPerfWin');
   buildEquityChart('perfEquity',{window:state.perfWindow,showBenchmarks:true,showDrawdown:false,showRegime:true,showLive:true,log:state.perfLog});
   buildRolling();
   buildUnderwater();
@@ -677,7 +684,7 @@ function buildPeriodTable(){
   const body=periods.map(([lab,k])=>`<tr><td>${lab}</td>${cols.map(c=>{const v=(c[1]||{})[k];return `<td class="r num ${signClass(v)}">${pctSigned(v)}</td>`;}).join('')}</tr>`).join('');
   document.getElementById('perfPeriods').innerHTML=head+'<tbody>'+body+'</tbody>';
 }
-function setPerfWin(k){ state.perfWindow=k; document.getElementById('perfWinBtns').innerHTML=windowBtns(k,['3M','6M','YTD','1Y','3Y','SI'],'setPerfWin'); buildEquityChart('perfEquity',{window:k,showBenchmarks:true,showDrawdown:false,showRegime:true,showLive:true,log:state.perfLog}); }
+function setPerfWin(k){ state.perfWindow=k; document.getElementById('perfWinBtns').innerHTML=windowBtns(k,WIN_PERF,'setPerfWin'); buildEquityChart('perfEquity',{window:k,showBenchmarks:true,showDrawdown:false,showRegime:true,showLive:true,log:state.perfLog}); }
 function togglePerfLog(){ state.perfLog=document.getElementById('perfLog').checked; buildEquityChart('perfEquity',{window:state.perfWindow,showBenchmarks:true,showDrawdown:false,showRegime:true,showLive:true,log:state.perfLog}); }
 
 function buildRolling(){
@@ -902,7 +909,7 @@ function renderRisk(){
       <div class="card"><div class="card-title" style="margin-bottom:10px">EM tilt — ratio vs moving averages</div><div id="riskEem" class="chart" style="height:280px"></div></div>
       <div class="card"><div class="card-title" style="margin-bottom:10px">Sleeve correlation (daily returns, since inception)</div><div id="riskCorr"></div></div>
     </div>`;
-  document.getElementById('riskWinBtns').innerHTML=windowBtns(state.riskWindow,['6M','YTD','1Y','3Y','SI'],'setRiskWin');
+  document.getElementById('riskWinBtns').innerHTML=windowBtns(state.riskWindow,WIN_RISK,'setRiskWin');
   buildEquityChart('riskEquity',{window:state.riskWindow,showBenchmarks:false,showDrawdown:false,showRegime:true,showLive:false});
   // events table (most recent first)
   const ev=rg.events.slice().reverse();
@@ -933,7 +940,7 @@ function buildCorrMatrix(elId){
     <div class="card-note" style="margin-top:8px">Lower cross-sleeve correlation is the diversification engine. Model row reflects the blend.</div>`;
 }
 
-function setRiskWin(k){ state.riskWindow=k; document.getElementById('riskWinBtns').innerHTML=windowBtns(k,['6M','YTD','1Y','3Y','SI'],'setRiskWin'); buildEquityChart('riskEquity',{window:k,showBenchmarks:false,showDrawdown:false,showRegime:true,showLive:false}); }
+function setRiskWin(k){ state.riskWindow=k; document.getElementById('riskWinBtns').innerHTML=windowBtns(k,WIN_RISK,'setRiskWin'); buildEquityChart('riskEquity',{window:k,showBenchmarks:false,showDrawdown:false,showRegime:true,showLive:false}); }
 
 function renderSignals(){
   const sig=DS.signals, sm=DS.weights.sleeve_meta;
@@ -977,6 +984,46 @@ function trendBar(v){ if(!isNum(v)) return '<span class="muted">—</span>';
       <span style="position:absolute;${v>=0?'left:50%':'right:50%'};top:0;bottom:0;width:${w}%;background:${col};border-radius:3px"></span>
     </span></span>`;
 }
+function renderTrades(){
+  const t=DS.trades||{}, log=t.log||[]; const el=document.getElementById('tabContent');
+  if(!log.length){ el.innerHTML='<div class="loading">No rebalance history yet — the ledger seeds on the next build.</div>'; return; }
+  const latest=log[0];
+  const days=(Date.now()-new Date(latest.date+'T00:00:00').getTime())/86400000;
+  const latestTitle = latest.type==='initial' ? 'Opening position — '+fmtDate(latest.date)
+      : (days<=8?"This week's trades":'Latest rebalance')+' — '+fmtDate(latest.date);
+  const actChip=a=>`<span class="act act-${(a||'').toLowerCase()}">${a}</span>`;
+  const dRow=d=>`<tr><td>${actChip(d.action)} <strong>${esc(d.ticker)}</strong> <span class="muted" style="font-size:11px">${esc(d.name)}</span></td>
+    <td class="r num">${pct(d.from,1)}</td><td class="r num">${pct(d.to,1)}</td>
+    <td class="r num ${signClass(d.delta)}">${pctSigned(d.delta,1)}</td></tr>`;
+  const blotter=[]; log.forEach(e=> (e.deltas||[]).forEach(d=> blotter.push(Object.assign({date:e.date,etype:e.type},d))));
+  el.innerHTML = `
+    <div class="callout" style="margin-bottom:18px">Rebalance &amp; trade history. The model rebalances <strong>weekly (Fridays)</strong>; the ledger records every change in target weights — adds, trims, new entries and exits. History begins ${fmtDate(t.since)}, when monitoring started; the engine does not expose pre-monitoring target weights. Rebalance dates also appear as thin blue verticals on the performance charts.</div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><div class="card-title">${latestTitle}</div><div class="card-note">turnover ${pct(latest.turnover,1)} · ${latest.n} ${latest.type==='initial'?'positions':'trades'}</div></div>
+        <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>${latest.type==='initial'?'Position':'Trade'}</th><th class="r">From</th><th class="r">To</th><th class="r">Δ</th></tr></thead>
+        <tbody>${latest.deltas.map(dRow).join('')}</tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">Turnover by rebalance</div>
+        <div id="trTurnover" class="chart" style="height:240px"></div>
+        <div class="card-note" style="margin-top:6px">One-way turnover (½·Σ|Δ weight|) at each rebalance. Higher bars = more trading.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div class="card-title">Trade blotter</div><div class="card-note">${blotter.length} change${blotter.length===1?'':'s'} across ${log.length} event${log.length===1?'':'s'}</div></div>
+      <div style="overflow-x:auto;max-height:460px"><table class="tbl"><thead><tr><th>Date</th><th>Trade</th><th class="r">From</th><th class="r">To</th><th class="r">Δ weight</th></tr></thead>
+      <tbody>${blotter.slice(0,200).map(b=>`<tr><td class="num" style="font-size:11px">${fmtDate(b.date)}</td>
+        <td>${actChip(b.action)} <strong>${esc(b.ticker)}</strong> <span class="muted" style="font-size:11px">${esc(b.name)}</span></td>
+        <td class="r num">${pct(b.from,1)}</td><td class="r num">${pct(b.to,1)}</td>
+        <td class="r num ${signClass(b.delta)}">${pctSigned(b.delta,1)}</td></tr>`).join('')}</tbody></table></div>
+    </div>`;
+  const ent=log.slice().reverse();   // oldest -> newest for the time axis
+  plot(document.getElementById('trTurnover'),[{type:'bar',x:ent.map(e=>e.date),y:ent.map(e=>(e.turnover||0)*100),
+    marker:{color:ent.map(e=>e.type==='initial'?'#b0b0a8':'#2563eb')},hovertemplate:'%{x|%-d %b %Y}<br>turnover %{y:.1f}%<extra></extra>'}],
+    baseLayout({margin:{t:8,b:34,l:42,r:12},yaxis:{ticksuffix:'%',gridcolor:'#ededea',tickfont:{size:9,family:'JetBrains Mono'},rangemode:'tozero'},xaxis:{tickfont:{size:9}}}));
+}
+
 function renderHealth(){
   const h=DS.health, m=DS.meta, rc=DS.stats.reconcile, ch=DS.changes;
   const lvlTxt={ok:'All checks passed',warn:'Attention — a feed is near its freshness budget',stale:'Stale or inconsistent data detected'}[h.level];
@@ -1021,10 +1068,8 @@ function renderHealth(){
       </div>
     </div>
     <div class="card">
-      <div class="card-h"><div class="card-title">Weight changes since last build</div><div class="card-note">${ch.available?('turnover '+pct(ch.turnover,1)+(ch.asOf_prev?' · prev '+fmtDate(ch.asOf_prev):'')):'no prior build to compare'}</div></div>
-      ${ch.available && ch.deltas.length ? `<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Ticker</th><th class="r">From</th><th class="r">To</th><th class="r">Δ</th></tr></thead>
-        <tbody>${ch.deltas.map(d=>`<tr><td><strong>${esc(d.ticker)}</strong></td><td class="r num">${pct(d.from,1)}</td><td class="r num">${pct(d.to,1)}</td><td class="r num ${signClass(d.delta)}">${pctSigned(d.delta,2)}</td></tr>`).join('')}</tbody></table></div>`
-        : '<div class="muted" style="font-size:13px">No weight changes since the previous build (the model rebalances weekly on Fridays).</div>'}
+      <div class="card-title" style="margin-bottom:6px">Portfolio changes</div>
+      <div class="muted" style="font-size:13px">Rebalances, this week's trades and the full trade blotter are on the <a href="#" onclick="setTab('trades');return false;">Trades</a> tab.</div>
     </div>`;
 }
 

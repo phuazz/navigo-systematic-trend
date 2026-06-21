@@ -53,6 +53,25 @@ def test_exposure_rollups_and_concentration():
     assert 0 < w["concentration"]["hhi"] <= 1
 
 
+def test_trade_ledger_initial_then_rebalance():
+    w1 = adapter.build_weights(_live(tilt=True), REG)          # EEM, SOXX, EXH1 (SHY ~0 excluded)
+    led, tr = adapter.build_trades(None, w1, REG, "2026-06-17")
+    assert tr["count"] == 1 and tr["log"][0]["type"] == "initial"
+
+    # A genuine rebalance: trim EEM, add SOXX, exit EXH1, open QQQ.
+    live2 = _live(tilt=True)
+    live2["effective_weights"] = {"EEM": 0.10, "SOXX": 0.20, "QQQ": 0.05}
+    w2 = adapter.build_weights(live2, REG)
+    led2, tr2 = adapter.build_trades(led, w2, REG, "2026-06-24")
+    assert tr2["count"] == 2 and tr2["log"][0]["type"] == "rebalance"
+    acts = {d["ticker"]: d["action"] for d in tr2["log"][0]["deltas"]}
+    assert acts.get("QQQ") == "NEW" and acts.get("EXH1") == "EXIT"
+
+    # No change -> no new entry (sub-threshold drift is ignored).
+    led3, tr3 = adapter.build_trades(led2, w2, REG, "2026-06-25")
+    assert tr3["count"] == 2
+
+
 def test_tilt_off_drops_tilt_leg_and_restores_b_alloc():
     w = adapter.build_weights(_live(tilt=False), REG)
     eem = next(r for r in w["rows"] if r["ticker"] == "EEM")

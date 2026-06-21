@@ -22,8 +22,8 @@ import metrics  # noqa: E402
 import prices as prices_mod  # noqa: E402
 import validate  # noqa: E402
 from benchmarks import build_benchmarks  # noqa: E402
-from config import (ACTIVE_PORTFOLIO_IDS, DOCS_INDEX, TEMPLATE, dataset_path,  # noqa: E402
-                    load_registry)
+from config import (ACTIVE_PORTFOLIO_IDS, DATA_DIR, DOCS_DATA_DIR, DOCS_INDEX,  # noqa: E402
+                    TEMPLATE, dataset_path, load_registry)
 from sources import load_sources  # noqa: E402
 
 
@@ -65,6 +65,11 @@ def build_dataset(portfolio_id: str, *, local: str | None = None,
     prev = _load_prev(portfolio_id)
     changes = adapter.build_changes(weights, prev)
 
+    # Append-only rebalance/trade ledger (persists across daily builds).
+    ledger = _load_ledger(portfolio_id)
+    new_ledger, trades = adapter.build_trades(ledger, weights, reg, stats["end"])
+    _save_ledger(portfolio_id, new_ledger)
+
     health = validate.run(bundle, reg, run_date, stats, bench_ok, bench_note)
 
     meta = {
@@ -84,7 +89,7 @@ def build_dataset(portfolio_id: str, *, local: str | None = None,
     dataset = {
         "meta": meta, "weights": weights, "equity": equity, "stats": stats,
         "regime": regime, "attribution": attribution, "risk": risk, "pnl": pnl,
-        "holdings_prices": holdings_prices, "signals": signals,
+        "holdings_prices": holdings_prices, "signals": signals, "trades": trades,
         "monthly": monthly, "changes": changes, "health": health,
     }
     _report(dataset)
@@ -99,6 +104,28 @@ def _load_prev(portfolio_id: str) -> dict | None:
         except Exception:
             return None
     return None
+
+
+def _ledger_path(portfolio_id: str, *, docs: bool) -> Path:
+    base = DOCS_DATA_DIR if docs else DATA_DIR
+    return base / f"rebalance-{portfolio_id}.json"
+
+
+def _load_ledger(portfolio_id: str) -> dict | None:
+    p = _ledger_path(portfolio_id, docs=True)
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+    return None
+
+
+def _save_ledger(portfolio_id: str, ledger: dict) -> None:
+    for docs in (False, True):
+        p = _ledger_path(portfolio_id, docs=docs)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(ledger, separators=(",", ":")), encoding="utf-8")
 
 
 def _report(ds: dict) -> None:

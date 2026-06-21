@@ -379,6 +379,57 @@ def build_changes(weights, prev_dataset) -> dict:
             "asOf_prev": (prev_dataset.get("meta") or {}).get("asOf")}
 
 
+# --- rebalance / trade ledger (append-only) --------------------------------
+def build_trades(ledger, weights, registry, asof):
+    """Append-only rebalance ledger.
+
+    Diffs the current target weights against the last recorded set; when turnover
+    crosses a threshold a rebalance entry is recorded with its trades (entries,
+    exits, adds, trims) and their weight deltas. History begins when monitoring
+    started — the engine does not expose pre-monitoring target weights, so the
+    first build seeds the opening position. Returns (new_ledger, trades_block).
+    """
+    meta = registry["etf_meta"]
+    cur = {r["ticker"]: float(r["weight"] or 0.0) for r in weights["rows"] if (r["weight"] or 0) > 1e-4}
+    ledger = ledger or {}
+    last = ledger.get("last_weights")
+    log = list(ledger.get("log", []))
+
+    def nm(t):
+        return meta.get(t, {}).get("name", t)
+
+    def act(f, c):
+        if f <= 1e-4 and c > 1e-4:
+            return "NEW"
+        if f > 1e-4 and c <= 1e-4:
+            return "EXIT"
+        return "ADD" if c > f else "TRIM"
+
+    if last is None:                                   # first ever build — seed opening book
+        deltas = [{"ticker": t, "name": nm(t), "from": 0.0, "to": _r(w, 5), "delta": _r(w, 5), "action": "INITIAL"}
+                  for t, w in sorted(cur.items(), key=lambda x: -x[1])]
+        log.append({"date": asof, "type": "initial", "turnover": _r(sum(cur.values()), 5),
+                    "n": len(deltas), "deltas": deltas})
+        last = cur
+    else:
+        tickers = set(cur) | set(last)
+        raw = [(t, float(last.get(t, 0.0)), cur.get(t, 0.0)) for t in tickers]
+        turnover = 0.5 * sum(abs(c - f) for _, f, c in raw)
+        deltas = sorted(
+            [{"ticker": t, "name": nm(t), "from": _r(f, 5), "to": _r(c, 5), "delta": _r(c - f, 5), "action": act(f, c)}
+             for t, f, c in raw if abs(c - f) > 5e-4],
+            key=lambda d: -abs(d["delta"] or 0))
+        if turnover > 0.005 and deltas:                # ignore sub-threshold drift
+            log.append({"date": asof, "type": "rebalance", "turnover": _r(turnover, 5),
+                        "n": len(deltas), "deltas": deltas})
+            last = cur
+
+    new_ledger = {"last_weights": last, "updated": asof, "log": log}
+    trades = {"since": log[0]["date"] if log else asof, "count": len(log),
+              "log": list(reversed(log)), "asOf": asof}      # newest first for display
+    return new_ledger, trades
+
+
 # --- short-horizon P&L (model vs benchmarks) -------------------------------
 def build_pnl(model_full: pd.Series, benchmarks: dict) -> dict:
     """1-day / 1-week / 1-month return for the model and each benchmark.
