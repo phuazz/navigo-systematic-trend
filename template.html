@@ -718,7 +718,8 @@ function renderPerformance(){
       <div id="perfEquity" class="chart" style="height:380px"></div>
     </div>
     <div class="grid2">
-      <div class="card"><div class="card-title" style="margin-bottom:10px">Rolling 12-month return &amp; volatility</div><div id="perfRolling" class="chart" style="height:260px"></div></div>
+      <div class="card"><div class="card-title" style="margin-bottom:10px">Rolling 12-month return vs S&amp;P 500</div><div id="perfRolling" class="chart" style="height:260px"></div>
+        <div class="card-note" style="margin-top:6px">Blue ribbon = trailing-year return relative to the S&amp;P (right axis). Sustained dips below zero are the narrow mega-cap bull stretches (2019, 2021, the long 2023–24 run); the model leads in down/volatile periods.</div></div>
       <div class="card"><div class="card-title" style="margin-bottom:10px">Drawdown (underwater)</div><div id="perfDD" class="chart" style="height:260px"></div></div>
     </div>
     <div class="grid2">
@@ -788,13 +789,19 @@ function setPerfWin(k){ state.perfWindow=k; document.getElementById('perfWinBtns
 function togglePerfLog(){ state.perfLog=document.getElementById('perfLog').checked; buildEquityChart('perfEquity',{window:state.perfWindow,showBenchmarks:true,showDrawdown:false,showRegime:true,showLive:true,log:state.perfLog}); }
 
 function buildRolling(){
-  const eq=DS.equity; const rs=rollingSeries(eq.model,eq.dates,252);
+  const eq=DS.equity, n=eq.dates.length;
+  const mr=rollingSeries(eq.model, eq.dates, 252);
+  const spyEq=(eq.benchmarks.SPY?eq.benchmarks.SPY.equity:[]).slice(0,n);
+  const sr=rollingSeries(spyEq, eq.dates, 252);
+  const rel=mr.ret.map((v,i)=> (isNum(v)&&isNum(sr.ret[i]))? (v-sr.ret[i])*100 : null);
   plot(document.getElementById('perfRolling'),[
-    {type:'scatter',mode:'lines',name:'12m return',x:rs.x,y:rs.ret.map(v=>v*100),line:{color:'#1a8754',width:1.8},hovertemplate:'%{x|%b %Y}<br>12m ret %{y:.1f}%<extra></extra>'},
-    {type:'scatter',mode:'lines',name:'12m vol',x:rs.x,y:rs.vol.map(v=>v*100),yaxis:'y2',line:{color:'#b45309',width:1.4},hovertemplate:'12m vol %{y:.1f}%<extra></extra>'},
-  ], baseLayout({showlegend:true,legend:{orientation:'h',x:0,y:1.1,font:{size:10}},
+    {type:'scatter',mode:'lines',name:'Relative (model−S&P)',x:mr.x,y:rel,yaxis:'y2',
+      line:{width:0},fill:'tozeroy',fillcolor:'rgba(37,99,235,0.13)',hovertemplate:'rel %{y:.0f}%<extra></extra>'},
+    {type:'scatter',mode:'lines',name:'Model 12m',x:mr.x,y:mr.ret.map(v=>v*100),line:{color:'#1a8754',width:1.6},hovertemplate:'%{x|%b %Y}<br>model %{y:.0f}%<extra></extra>'},
+    {type:'scatter',mode:'lines',name:'S&P 12m',x:sr.x,y:sr.ret.map(v=>v==null?null:v*100),line:{color:'#8a8a82',width:1.4},hovertemplate:'S&P %{y:.0f}%<extra></extra>'},
+  ], baseLayout({showlegend:true,legend:{orientation:'h',x:0,y:1.12,font:{size:9}},
     yaxis:{gridcolor:'#ededea',ticksuffix:'%',tickfont:{size:9,family:'JetBrains Mono'},zeroline:true,zerolinecolor:'#cfcdc4'},
-    yaxis2:{overlaying:'y',side:'right',ticksuffix:'%',tickfont:{size:9,color:'#b45309',family:'JetBrains Mono'},gridcolor:'rgba(0,0,0,0)',rangemode:'tozero'}}));
+    yaxis2:{overlaying:'y',side:'right',ticksuffix:'%',tickfont:{size:8,color:'#2563eb',family:'JetBrains Mono'},gridcolor:'rgba(0,0,0,0)',zeroline:false}}));
 }
 function buildUnderwater(){
   const eq=DS.equity; let peak=-Infinity; const dd=eq.model.map(v=>{ peak=Math.max(peak,v); return (v/peak-1)*100; });
