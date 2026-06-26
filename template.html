@@ -1228,6 +1228,7 @@ function renderHealth(){
       <div class="card-title" style="margin-bottom:12px">Feed freshness</div>
       <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Feed</th><th>As of</th><th class="r">Lag (bdays)</th><th class="r">Budget</th><th class="c">Status</th><th>Engine computed</th></tr></thead>
       <tbody>${h.feeds.map(feedRow).join('')}</tbody></table></div>
+      <div class="card-note" style="margin-top:8px">The live NAV refreshes daily; the breadth panel and the strategy-equity backtest regenerate in the weekly run, so they trail by design (wider budgets). The headline model is extended to the live NAV date regardless of the backtest curves.</div>
     </div>
     <div class="grid2">
       <div class="card">

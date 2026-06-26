@@ -55,7 +55,7 @@ def run(bundle: dict, registry: dict, run_date: dt.date, stats: dict,
     add("Breadth / regime panel (risk_overlay)", regime_asof, _bday_lag(regime_asof, run_date),
         fb["regime_bdays"], overlay.get("computed_at_utc"))
     add("Strategy equity (multi_strategy)", multi.get("common_end"),
-        _bday_lag(multi.get("common_end"), run_date), fb["regime_bdays"],
+        _bday_lag(multi.get("common_end"), run_date), fb.get("strategy_bdays", fb["regime_bdays"]),
         multi.get("computed_at_utc"))
 
     messages = []

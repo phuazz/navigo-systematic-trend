@@ -40,7 +40,8 @@
   "freshness": {
     "price_bdays": 4,
     "regime_bdays": 8,
-    "note": "Business-day lag budgets. The breadth/regime panel updates weekly (Saturdays), so its budget is wider than the daily price feed."
+    "strategy_bdays": 12,
+    "note": "Business-day lag budgets. The live NAV (live_track) refreshes daily; the breadth/regime panel and the strategy-equity backtest regenerate only in the weekly run, so their data trails the live NAV by up to ~1.5 weeks by design — hence wider budgets. The headline model is extended daily via live_track regardless."
   },
   "etf_meta": {
     "EEM":       {"name": "MSCI Emerging Markets",            "sleeve": "B", "assetClass": "Equity",      "geo": "Emerging",  "theme": "Broad EM",          "tradeAs": "EEM"},
