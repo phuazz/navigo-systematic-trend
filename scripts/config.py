@@ -9,6 +9,7 @@ code.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 # Repository layout ---------------------------------------------------------
@@ -26,6 +27,18 @@ ACTIVE_PORTFOLIO_IDS = ["navigo-systematic-trend"]
 
 # Trading-day convention: ~252 sessions a year. Stated once, reused everywhere.
 TRADING_DAYS_PER_YEAR = 252
+
+# Valuation layer (DESIGN.md Phase 1) — Navigo's own daily mark-to-market.
+# DEFAULT OFF: the production path stays the thin renderer of the engine's
+# live_track, byte-for-byte. When enabled, the pipeline additionally computes
+# Navigo's independent mark and reconciles it against the engine's live_equity,
+# attaching the result under a distinct dataset "valuation" key (it never
+# overwrites the headline). Flip via the NAVIGO_VALUATION_LAYER env var
+# (1/true/yes/on) without editing code.
+VALUATION_LAYER_ENABLED = (
+    os.environ.get("NAVIGO_VALUATION_LAYER", "false").strip().lower()
+    in ("1", "true", "yes", "on")
+)
 
 
 def load_registry(portfolio_id: str) -> dict:

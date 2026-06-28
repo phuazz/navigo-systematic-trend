@@ -21,9 +21,10 @@ import adapter  # noqa: E402
 import metrics  # noqa: E402
 import prices as prices_mod  # noqa: E402
 import validate  # noqa: E402
+import valuation  # noqa: E402
 from benchmarks import build_benchmarks  # noqa: E402
 from config import (ACTIVE_PORTFOLIO_IDS, DATA_DIR, DOCS_DATA_DIR, DOCS_INDEX,  # noqa: E402
-                    TEMPLATE, dataset_path, load_registry)
+                    TEMPLATE, VALUATION_LAYER_ENABLED, dataset_path, load_registry)
 from sources import load_sources  # noqa: E402
 
 
@@ -97,6 +98,17 @@ def build_dataset(portfolio_id: str, *, local: str | None = None,
         "holdings_prices": holdings_prices, "signals": signals, "trades": trades,
         "monthly": monthly, "changes": changes, "health": health,
     }
+
+    # Valuation layer (DESIGN.md Phase 1), default OFF. When enabled, compute
+    # Navigo's own daily mark and reconcile it against the engine's live_equity,
+    # attaching it under a distinct key. The dataset is otherwise untouched, so
+    # the off-path production output is byte-for-byte identical to the renderer.
+    if VALUATION_LAYER_ENABLED:
+        val = valuation.build(live, reg)
+        if val:
+            dataset["valuation"] = val
+            _report_valuation(val)
+
     _report(dataset)
     return dataset
 
@@ -131,6 +143,18 @@ def _save_ledger(portfolio_id: str, ledger: dict) -> None:
         p = _ledger_path(portfolio_id, docs=docs)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(ledger, separators=(",", ":")), encoding="utf-8")
+
+
+def _report_valuation(val: dict) -> None:
+    cov = val["coverage"]
+    rec = val.get("reconcile")
+    print(f"  valuation: weights_as_of={val['weights_as_of']} nav_as_of={val['nav_as_of']} "
+          f"(age {val['weights_age_bdays']} bdays); coverage {cov['covered_weight']:.4f} "
+          f"of 1.0, {'complete' if cov['complete'] else 'INCOMPLETE: ' + ','.join(cov['uncovered'])}")
+    if rec:
+        s, a = rec["settled"], rec["all"]
+        print(f"  valuation reconcile vs engine live_equity: settled max={s['max_abs_bps']}bps "
+              f"mean={s['mean_abs_bps']}bps (n={s['n']}); incl run-day max={a['max_abs_bps']}bps (n={a['n']})")
 
 
 def _report(ds: dict) -> None:
