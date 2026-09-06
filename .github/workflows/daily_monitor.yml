@@ -12,12 +12,21 @@ name: Daily monitor refresh
 # residual tail is ever hit. With this repo's own cron delays (measured
 # 62-90 min) the job lands ~00:40-01:10 UTC = 08:40-09:10 SGT.
 #
+# Sunday (added 2026-09-06): the engine's weekend run RESTATES the deployed
+# history (its 2026-09-06 run moved the series start and the whole path) and
+# its factsheet email goes out the same day, so a Mon-Fri-only cadence left
+# this page on the previous vintage until Monday night — the two surfaces
+# disagreed on YTD for a day and a half. 07:00 UTC (15:00 SGT) clears the
+# engine's Sunday 01:00 UTC scheduled run and the factsheet send that
+# follows it; the same cron-delay tail applies.
+#
 # What it does NOT do: re-run the strategy. The monitor is a read-only consumer
 # of the engine's published outputs.
 
 on:
   schedule:
     - cron: '40 23 * * 1-5'   # Mon-Fri 23:40 UTC (early morning SGT)
+    - cron: '0 7 * * 0'       # Sun 07:00 UTC (15:00 SGT): after the engine's weekend restatement
   workflow_dispatch:           # manual trigger
 
 permissions:

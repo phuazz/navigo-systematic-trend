@@ -20,6 +20,11 @@ strategy. Context is Personal (own book), not Navigo or CGSI. Renamed from navig
   source of portfolio config is `portfolios/<id>.json`.
 - **Dates via libraries only** — Python `datetime`/`dateutil` in the pipeline, `date-fns`-style
   care in the browser (`pct`/period anchors are computed in Python, which is unit-tested).
+- **The S&P 500 benchmark is the engine's series.** `data/benchmark_spy.json` (the engine's
+  committed export, the series behind its weekly email and factsheet) is the base of the SPY
+  curve; yfinance only chains returns after its last date, and no benchmark is ever
+  forward-filled onto a date it has no bar for (2026-09-05: a withheld Friday bar printed S&P
+  YTD +13.1% against the email's +12.7%). Reconcile the page to the email, never the reverse.
 
 ## Build
 

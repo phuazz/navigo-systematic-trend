@@ -324,9 +324,13 @@ function renderHeadline(){
   const ytd=pr.YTD;
   if(!isNum(ytd)) return;              // no YTD, nothing honest to summarise
 
-  const asOf=fmtDate(DS.meta.live_asOf||DS.meta.asOf);
+  const modelEnd=DS.meta.live_asOf||DS.meta.asOf, asOf=fmtDate(modelEnd);
+  const spyAsOf=(bs.SPY||{}).asOf||null;
+  const spyShort=(spyAsOf&&spyAsOf<modelEnd)?spyAsOf:null;   // benchmark a session short of the NAV
+  const ends=spyShort?('the model ending '+asOf+' and the S&P 500 ending '+fmtDate(spyShort)
+    +' because its newest bar was not served (see Data Health)'):('both ending '+asOf);
   const tip='Time-weighted return. Model and benchmark YTD come from the same function over '
-    +'the same window — both anchored on the prior year-end close, both ending '+asOf+'. '
+    +'the same window — both anchored on the prior year-end close, '+ends+'. '
     +'The final model point is a live mark-to-market, not a settled close.';
 
   let line=`Model <span class="hs-num ${ytd>=0?'hs-pos':'hs-neg'}" title="${esc(tip)}">`
@@ -343,13 +347,15 @@ function renderHeadline(){
     const b=((bs[key]||{}).period_returns||{}).YTD;
     if(!isNum(b)) continue;
     const alpha=ytd-b;
-    const bt=`${tip} Model ${pct(ytd,2)} vs ${plain} ${pct(b,2)}.`;
+    const bAsOf=(bs[key]||{}).asOf||null;
+    const lagTxt=(bAsOf&&bAsOf<modelEnd)?' (to '+fmtDateShort(bAsOf)+')':'';
+    const bt=`${tip} Model ${pct(ytd,2)} vs ${plain} ${pct(b,2)}${lagTxt}.`;
     if(Math.abs(alpha)<0.0005){
-      frags.push(`<span title="${esc(bt)}">level with ${name}</span>`);
+      frags.push(`<span title="${esc(bt)}">level with ${name}${lagTxt}</span>`);
     }else{
       frags.push(`<span class="hs-num ${alpha>=0?'hs-pos':'hs-neg'}" title="${esc(bt)}">`
         +`${(alpha>=0?'+':'')+(alpha*100).toFixed(2)} pp</span>`
-        +`<span title="${esc(bt)}"> ${alpha>=0?'ahead of':'behind'} ${name}</span>`);
+        +`<span title="${esc(bt)}"> ${alpha>=0?'ahead of':'behind'} ${name}${lagTxt}</span>`);
     }
   }
   if(frags.length) line+=', '+frags.join(' and ');
@@ -388,11 +394,16 @@ function sharpeSE(sr, nDays){
 function renderKPIs(){
   const s=DS.stats, rg=DS.regime;
   const pr=s.period_returns;
-  const spyYtd = (((s.benchmark_stats||{}).SPY||{}).period_returns||{}).YTD;
+  const spySt=(s.benchmark_stats||{}).SPY||{};
+  const spyYtd = (spySt.period_returns||{}).YTD;
   const exYtd = (isNum(pr.YTD)&&isNum(spyYtd)) ? pr.YTD - spyYtd : null;
+  // The benchmark's own last bar. When it trails the model's end the caveat
+  // travels with the number (2026-09-05: SPY a session short, and silent).
+  const spyLag = (spySt.asOf && s.end && spySt.asOf < s.end) ? ' to '+fmtDateShort(spySt.asOf) : '';
+  const spyLagTip = spyLag ? 'S&P 500 series ends '+fmtDate(spySt.asOf)+' (its newest bar was not served); the model ends '+fmtDate(s.end)+'. See Data Health.' : '';
   const html = [
-    kpiCard('vs S&P 500', pctSigned(exYtd), 'YTD excess', signClass(exYtd)),
-    kpiCard('YTD', pctSigned(pr.YTD), isNum(spyYtd)?('S&P '+pctSigned(spyYtd)):'calendar', signClass(pr.YTD)),
+    kpiCard('vs S&P 500', pctSigned(exYtd), 'YTD excess'+(spyLag?' · S&P'+spyLag:''), signClass(exYtd), spyLagTip),
+    kpiCard('YTD', pctSigned(pr.YTD), isNum(spyYtd)?('S&P '+pctSigned(spyYtd)+spyLag):'calendar', signClass(pr.YTD), spyLagTip),
     kpiCard('1 Year', pctSigned(pr['1Y']), 'trailing', signClass(pr['1Y'])),
     kpiCard('CAGR', pct(s.cagr), 'since inception'),
     kpiCard('Ann. Vol', pct(s.ann_vol), 'daily, ×√252'),
@@ -512,7 +523,9 @@ function buildEquityChart(elId, opt){
 }
 function benchChips(){
   const bms=DS.equity.benchmarks||{};
-  return Object.keys(bms).map(k=>`<button class="fbtn ${(state.benchmarks||[]).includes(k)?'active':''}" onclick="toggleBench('${k}')"><span class="dot" style="background:${bms[k].color||'#8a8a82'}"></span>${esc(bms[k].label||k)}</button>`).join('');
+  // Provenance on hover: source basis and the series' own last bar.
+  const prov=b=>esc([b.source||'', b.asOf?('to '+fmtDate(b.asOf)):''].filter(Boolean).join(' · '));
+  return Object.keys(bms).map(k=>`<button class="fbtn ${(state.benchmarks||[]).includes(k)?'active':''}" onclick="toggleBench('${k}')" title="${prov(bms[k])}"><span class="dot" style="background:${bms[k].color||'#8a8a82'}"></span>${esc(bms[k].label||k)}</button>`).join('');
 }
 function toggleBench(k){
   state.benchmarks=state.benchmarks||[];
@@ -1765,7 +1778,7 @@ function renderHealth(){
   const lvlTxt={ok:'All checks passed',warn:'Attention — a feed is near its freshness budget',stale:'Stale or inconsistent data detected'}[h.level];
   const lvlCls={ok:'pos',warn:'',stale:'neg'}[h.level];
   const feedUnit=f=>((f.basis||'business days').indexOf('session')>=0?'sessions':'bdays');
-  const feedRow=f=>`<tr><td>${esc(f.feed)}</td><td class="num">${fmtDate(f.asOf)}</td>
+  const feedRow=f=>`<tr><td>${esc(f.feed)}${f.source?`<br><span class="muted" style="font-size:11px">${esc(f.source)}</span>`:''}</td><td class="num">${fmtDate(f.asOf)}</td>
     <td class="r num" title="Measured in ${esc(f.basis||'business days')}">${f.bday_lag==null?'—':f.bday_lag}</td>
     <td class="r num">${f.budget_bdays} <span class="muted" style="font-size:11px">${feedUnit(f)}</span></td>
     <td class="c"><span class="pill pill-health-${f.level}" style="padding:2px 8px">${f.level.toUpperCase()}</span></td>
@@ -1785,7 +1798,7 @@ function renderHealth(){
       <div class="card-title" style="margin-bottom:12px">Feed freshness</div>
       <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Feed</th><th>As of</th><th class="r">Lag</th><th class="r">Budget</th><th class="c">Status</th><th>Engine computed</th></tr></thead>
       <tbody>${h.feeds.map(feedRow).join('')}</tbody></table></div>
-      <div class="card-note" style="margin-top:8px">The live NAV refreshes daily and is measured in NYSE sessions against the last completed session — a budget of zero, so one session behind reads STALE. The breadth panel and the strategy-equity backtest regenerate in the weekly run, so they trail by design and keep wider business-day budgets. The headline model is extended to the live NAV date regardless of the backtest curves.</div>
+      <div class="card-note" style="margin-top:8px">The live NAV refreshes daily and is measured in NYSE sessions against the last completed session — a budget of zero, so one session behind reads STALE. The breadth panel and the strategy-equity backtest regenerate in the weekly run, so they trail by design and keep wider business-day budgets. The headline model is extended to the live NAV date regardless of the backtest curves. The S&amp;P 500 row measures the engine's benchmark export (plus its yfinance extension) in sessions behind the NAV's own as-of: one behind is WARN and every S&amp;P-relative figure carries a date caveat; the series is never forward-filled onto a date it has no bar for.</div>
     </div>
     <div class="grid2">
       <div class="card">

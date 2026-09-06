@@ -252,6 +252,10 @@ def build_stats(model_bt, model_full, overlay, registry, benchmarks) -> dict:
             "period_returns": {k: _r(v, 5) for k, v in metrics.period_returns(bseries).items()},
             "cagr": _r(metrics.cagr(bseries)), "ann_vol": _r(metrics.ann_vol(bseries)),
             "sharpe": _r(metrics.sharpe(bseries)), "max_dd": _r(metrics.max_drawdown(bseries)),
+            # The benchmark's own last bar. When it trails the model's end
+            # the client says so beside every benchmark-relative figure.
+            "asOf": bm.get("asOf") or bseries.index[-1].strftime("%Y-%m-%d"),
+            "basis": bm.get("basis"), "source": bm.get("source"),
         }
 
     # Reconcile our recompute (backtest window) against the engine's own figures.
@@ -626,7 +630,14 @@ def build_pnl(model_full: pd.Series, benchmarks: dict) -> dict:
 
     out = {"model": rets(model_full)}
     for k, bm in (benchmarks or {}).items():
-        out[k] = rets(metrics.equity_series(bm["dates"], bm["equity"]))
+        bseries = metrics.equity_series(bm["dates"], bm["equity"])
+        # Like for like or nothing: a benchmark with no bar on the reference
+        # date (the vendor withheld it) would otherwise report yesterday's
+        # session under today's label. Data Health carries the reason.
+        if bm.get("asOf") and pd.Timestamp(bm["asOf"]) < ref.normalize():
+            out[k] = {h: None for h in HZ_KEYS}
+            continue
+        out[k] = rets(bseries)
     sources = list(out.keys())
     return {p: {src: out[src][p] for src in sources} for p in HZ_KEYS}
 

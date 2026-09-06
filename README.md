@@ -42,8 +42,8 @@ breadth-thrust-etf (engine)            multi-strategy-portfolio (this repo)
   data/live_track.json        ──┐        scripts/sources.py   fetch raw @main + commit SHA
   data/multi_strategy.json    ──┼──▶      scripts/adapter.py   normalise → data contract
   data/risk_overlay.json      ──┤        scripts/metrics.py   stats / attribution / monthly
-  data/holdings_prices_1y.json──┘        scripts/benchmarks.py SPY + 60/40 via yfinance
-                                          scripts/prices.py    holdings price panel (+yf supplement)
+  data/holdings_prices_1y.json──┤        scripts/benchmarks.py S&P = engine export + yf extension; others via yfinance
+  data/benchmark_spy.json     ──┘        scripts/prices.py    holdings price panel (+yf supplement)
                                           scripts/validate.py  fail-loud freshness / consistency
                                           scripts/pipeline.py  orchestrate → docs/
 
@@ -53,6 +53,21 @@ breadth-thrust-etf (engine)            multi-strategy-portfolio (this repo)
 
 Source data is fetched from the engine's `main` branch via `raw.githubusercontent.com`
 (the engine is public; it does not publish its `data/*.json` to Pages directly).
+
+**The S&P 500 benchmark is the engine's series (2026-09-06).** `data/benchmark_spy.json` —
+the engine's committed export of adjusted SPY closes, the series behind its weekly email and
+factsheet — is the base of this page's S&P curve; yfinance only chains daily returns after
+the export's last date (the export refreshes with the engine's local Tue/Wed/Sat/Sun runs,
+so mid-week the extension is one to three sessions). Both surfaces therefore carry one S&P
+figure by construction, and the page reconciles to the email, never the reverse. No
+benchmark is forward-filled onto a date it has no bar for: on 2026-09-05 the 01:22 UTC
+fetch received no Friday SPY bar, the old alignment carried Thursday's close onto Friday's
+date, and the page printed S&P YTD +13.1% against the model's Friday mark while the email
+said +12.7%. A benchmark now ends at its own last served close, carries `asOf`, and Data
+Health scores it in NYSE sessions behind the NAV (one behind = WARN, with the date caveat
+beside every S&P-relative figure). The model side was never the problem — its series was
+byte-identical to the engine's — but the engine restates the deployed history in its
+weekend run, so the Sunday build below keeps the page on the same vintage as the email.
 
 ### Multi-portfolio by design
 

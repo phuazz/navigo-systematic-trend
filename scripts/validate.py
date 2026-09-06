@@ -47,11 +47,15 @@ def _bday_lag(asof: str | None, run_date: dt.date) -> int | None:
 
 def run(bundle: dict, registry: dict, run_date: dt.date, stats: dict,
         bench_ok: bool, bench_note: str,
-        now_utc: dt.datetime | None = None) -> dict:
+        now_utc: dt.datetime | None = None,
+        benchmarks: dict | None = None) -> dict:
     """``now_utc`` anchors the live feed's session check. It is separate from
     ``run_date`` because the verdict needs the INSTANT, not the date: whether
     Friday's session has closed depends on the time of day, and run_date has
-    already thrown that away. Defaults to the real clock; tests pass it."""
+    already thrown that away. Defaults to the real clock; tests pass it.
+
+    ``benchmarks`` is the built benchmark dict (each carrying ``asOf``); an
+    engine-type benchmark gets a feed row judged against the NAV's own as-of."""
     fb = registry["freshness"]
     now_utc = now_utc or dt.datetime.now(dt.timezone.utc)
     live = bundle["live_track.json"]
@@ -63,13 +67,13 @@ def run(bundle: dict, registry: dict, run_date: dt.date, stats: dict,
 
     feeds = []
 
-    def add(name, asof, lag, budget, computed, basis="business days", warn_at=None):
+    def add(name, asof, lag, budget, computed, basis="business days", warn_at=None, **extra):
         """``warn_at``: a lag strictly above this is 'warn'. Defaults to
         ``budget - 2`` — the approach band that suits the wide weekly budgets.
         Pass ``warn_at=budget`` for a tight daily feed, which steps straight
         from ok to stale: at a budget of 0 there is no middle ground to occupy,
         and a permanent 'warn' on a healthy feed would train the eye to ignore
-        the banner."""
+        the banner. ``extra`` keys ride along on the feed row."""
         level = "ok"
         if lag is None:
             level = "warn"
@@ -78,7 +82,7 @@ def run(bundle: dict, registry: dict, run_date: dt.date, stats: dict,
         elif lag > (budget - 2 if warn_at is None else warn_at):
             level = "warn"
         feeds.append({"feed": name, "asOf": asof, "bday_lag": lag, "budget_bdays": budget,
-                      "level": level, "computed_at": computed, "basis": basis})
+                      "level": level, "computed_at": computed, "basis": basis, **extra})
 
     # Live NAV: sessions behind the last completed NYSE session (see module
     # docstring). Budget 0 = the page must show the session that has closed.
@@ -95,6 +99,24 @@ def run(bundle: dict, registry: dict, run_date: dt.date, stats: dict,
         _bday_lag(multi.get("common_end"), run_date), fb.get("strategy_bdays", fb["regime_bdays"]),
         multi.get("computed_at_utc"))
 
+    # Benchmark vs the live NAV (2026-09-06). The S&P curve's base is the
+    # engine's committed export, extended by yfinance returns; when the vendor
+    # withholds the newest bar the curve stops a session short of the NAV and
+    # every benchmark-relative figure on the page mixes dates (the 2026-09-05
+    # build printed S&P YTD +13.1% on Thursday's bar against Friday's mark).
+    # Judged in NYSE sessions behind the NAV's OWN as-of, not the calendar: a
+    # NAV that is itself late is the Price feed's finding, not this row's.
+    bench_budget = fb.get("benchmark_sessions", 1)
+    for key, cfg in registry.get("benchmarks", {}).items():
+        bm = (benchmarks or {}).get(key)
+        if cfg.get("type") != "engine" or not bm or not bm.get("asOf") or not price_asof:
+            continue
+        b_lag = sessions_behind(dt.date.fromisoformat(bm["asOf"][:10]),
+                                dt.date.fromisoformat(price_asof[:10]))
+        add(f"Benchmark {cfg.get('label', key)} (engine export)", bm["asOf"], b_lag,
+            bench_budget, bm.get("export_written_at_utc"), basis="NYSE sessions",
+            warn_at=0, versus=price_asof, source=bm.get("source"))
+
     messages = []
 
     # Name every feed that breaches or nears its budget. The banner renders
@@ -106,6 +128,11 @@ def run(bundle: dict, registry: dict, run_date: dt.date, stats: dict,
         lag, unit = f["bday_lag"], f["basis"]
         if lag is None:
             messages.append(f"{f['feed']}: as-of date missing.")
+        elif f.get("versus"):
+            messages.append(
+                f"{f['feed']} is {lag} NYSE session{'' if lag == 1 else 's'} behind the live NAV "
+                f"(benchmark as of {f['asOf']}, NAV as of {f['versus']}); benchmark-relative "
+                f"figures mix dates until the vendor serves the missing bar.")
         elif f["level"] == "stale":
             messages.append(
                 f"{f['feed']} is {lag} {unit[:-1] if lag == 1 else unit} behind "

@@ -44,10 +44,13 @@ def build_dataset(portfolio_id: str, *, local: str | None = None,
     price_series, price_meta = prices_mod.build_prices(
         bundle["holdings_prices_1y.json"], weights["rows"], reg, fetch_missing=use_benchmarks)
 
-    # Benchmarks aligned to the deployed model's date axis.
+    # Benchmarks aligned to the deployed model's date axis. The S&P curve's
+    # base is the engine's committed export (the series its email and
+    # factsheet use), read from the same bundle; yfinance only extends it.
     model_dates = overlay["gated_variants"][reg["source"]["deployed_key"]]["dates"]
     if use_benchmarks:
-        benchmarks, bench_ok, bench_note = build_benchmarks(model_dates, reg, live.get("live_dates"))
+        benchmarks, bench_ok, bench_note = build_benchmarks(
+            model_dates, reg, live.get("live_dates"), engine_files=bundle)
     else:
         benchmarks, bench_ok, bench_note = {}, False, "skipped (--no-benchmarks)"
     print(f"  benchmarks: ok={bench_ok} ({bench_note})")
@@ -76,7 +79,8 @@ def build_dataset(portfolio_id: str, *, local: str | None = None,
     print(f"  trades: {'reconstructed full history' if hist else 'forward ledger'} — "
           f"{trades.get('count')} rebalances since {trades.get('since')}, {len(trades.get('actions', []))} actions")
 
-    health = validate.run(bundle, reg, run_date, stats, bench_ok, bench_note)
+    health = validate.run(bundle, reg, run_date, stats, bench_ok, bench_note,
+                          benchmarks=benchmarks)
 
     meta = {
         "id": reg["id"], "name": reg["name"], "descriptor": reg["descriptor"],
@@ -88,7 +92,8 @@ def build_dataset(portfolio_id: str, *, local: str | None = None,
         "built_at_utc": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source_commit": bundle.get("source_commit"),
         "source_repo": reg["source"]["repo"],
-        "engine_computed_at": {f: bundle[f].get("computed_at_utc") for f in reg["source"]["files"]},
+        "engine_computed_at": {f: bundle[f].get("computed_at_utc") or bundle[f].get("written_at_utc")
+                               for f in reg["source"]["files"]},
         "health_level": health["level"],
     }
 
@@ -160,7 +165,11 @@ def _report_valuation(val: dict) -> None:
 def _report(ds: dict) -> None:
     s, h, r = ds["stats"], ds["health"], ds["regime"]
     print(f"  stats: sharpe={s['sharpe']} cagr={s['cagr']} maxDD={s['max_dd']} "
-          f"YTD={s['period_returns']['YTD']}")
+          f"YTD={s['period_returns']['YTD']} SI={s['period_returns']['SI']} to {s['end']}")
+    spy = (s.get("benchmark_stats") or {}).get("SPY")
+    if spy:
+        print(f"  benchmark SPY: YTD={spy['period_returns']['YTD']} SI={spy['period_returns']['SI']} "
+              f"to {spy.get('asOf')} ({spy.get('source')})")
     print(f"  reconcile ok={s['reconcile']['ok']} diffs={s['reconcile']['diffs']}")
     print(f"  regime: {r['state']} since {r['since']} breadth={r['breadth']} "
           f"EEM tilt={r['eem_tilt']['state']}")

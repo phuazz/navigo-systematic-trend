@@ -177,3 +177,59 @@ def test_fresh_feeds_produce_no_messages():
     h = validate.run(_bundle(), REG, RUN, _OK_STATS, bench_ok=True, bench_note="ok",
                      now_utc=NOW)
     assert h["messages"] == []
+
+
+# --- benchmark vs the live NAV (2026-09-06) ---------------------------------
+
+def _bench(asof, source="engine export benchmark_spy.json to 2026-06-17 + yfinance returns for 1 session"):
+    return {"SPY": {"asOf": asof, "source": source, "dates": [], "equity": [],
+                    "export_written_at_utc": "2026-06-14T02:00:00+00:00"}}
+
+
+def _bench_feed(h):
+    return next(f for f in h["feeds"] if f["feed"].startswith("Benchmark"))
+
+
+def test_benchmark_current_with_the_nav_is_ok_and_silent():
+    h = validate.run(_bundle(), REG, RUN, _OK_STATS, bench_ok=True, bench_note="ok",
+                     now_utc=NOW, benchmarks=_bench("2026-06-18"))
+    f = _bench_feed(h)
+    assert f["bday_lag"] == 0 and f["level"] == "ok" and f["basis"] == "NYSE sessions"
+    assert f["versus"] == "2026-06-18" and f["source"].startswith("engine export")
+    assert f["computed_at"] == "2026-06-14T02:00:00+00:00"
+    assert h["messages"] == [] and h["level"] == "ok"
+
+
+def test_benchmark_one_session_behind_the_nav_warns_and_names_both_dates():
+    """The 2026-09-05 build: the model marked on Friday 4 Sep, SPY's Friday bar
+    was withheld, the old alignment forward-filled Thursday and the page
+    compared the two without a word. One session behind is WARN, with both
+    dates in the message."""
+    h = validate.run(_bundle(), REG, RUN, _OK_STATS, bench_ok=True, bench_note="ok",
+                     now_utc=NOW, benchmarks=_bench("2026-06-17"))
+    f = _bench_feed(h)
+    assert f["bday_lag"] == 1 and f["level"] == "warn"
+    assert h["level"] == "warn"
+    assert any("Benchmark S&P 500" in m and "1 NYSE session behind the live NAV" in m
+               and "2026-06-17" in m and "2026-06-18" in m for m in h["messages"])
+
+
+def test_benchmark_two_sessions_behind_is_stale():
+    h = validate.run(_bundle(), REG, RUN, _OK_STATS, bench_ok=True, bench_note="ok",
+                     now_utc=NOW, benchmarks=_bench("2026-06-16"))
+    assert _bench_feed(h)["level"] == "stale" and h["level"] == "stale"
+    assert any("2 NYSE sessions behind" in m for m in h["messages"])
+
+
+def test_benchmark_ahead_of_a_late_nav_is_the_price_feeds_finding():
+    # NAV stuck on Wednesday, benchmark on Thursday: the benchmark row reads 0
+    # (never negative) and the Price feed carries the staleness.
+    h = validate.run(_bundle(price_asof="2026-06-17"), REG, RUN, _OK_STATS, bench_ok=True,
+                     bench_note="ok", now_utc=NOW, benchmarks=_bench("2026-06-18"))
+    assert _bench_feed(h)["bday_lag"] == 0 and _bench_feed(h)["level"] == "ok"
+    assert _price_feed(h)["level"] == "stale"
+
+
+def test_no_benchmark_row_without_an_engine_benchmark():
+    h = validate.run(_bundle(), REG, RUN, _OK_STATS, bench_ok=True, bench_note="ok", now_utc=NOW)
+    assert not any(f["feed"].startswith("Benchmark") for f in h["feeds"])

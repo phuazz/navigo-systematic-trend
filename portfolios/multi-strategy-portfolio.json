@@ -14,7 +14,7 @@
     "ref": "main",
     "raw_base": "https://raw.githubusercontent.com/phuazz/breadth-thrust-etf/main/data",
     "api_base": "https://api.github.com/repos/phuazz/breadth-thrust-etf",
-    "files": ["live_track.json", "multi_strategy.json", "risk_overlay.json", "holdings_prices_1y.json"],
+    "files": ["live_track.json", "multi_strategy.json", "risk_overlay.json", "holdings_prices_1y.json", "benchmark_spy.json"],
     "history_files": ["topk_robustness.json", "asset_class_rotation.json", "thematic_rotation.json", "europe_rotation.json"],
     "sleeve_history": {"A": "topk_robustness.json", "B": "asset_class_rotation.json", "C": "thematic_rotation.json", "D": "europe_rotation.json"},
     "deployed_key": "blend_35_35_10_20_gated_eem_tilted",
@@ -29,7 +29,8 @@
     "TILT": {"name": "EM Tilt", "key": null, "alloc": 0.0, "alloc_tilt": 0.10, "color": "#0891b2", "desc": "EEM/SPY golden-cross tilt of 10% NAV, funded from sleeve B. Weak-evidence positional bet, not robust alpha."}
   },
   "benchmarks": {
-    "SPY": {"name": "S&P 500", "label": "S&P 500", "type": "yfinance", "ticker": "SPY", "color": "#8a8a82", "default": true},
+    "SPY": {"name": "S&P 500", "label": "S&P 500", "type": "engine", "file": "benchmark_spy.json", "ticker": "SPY", "color": "#8a8a82", "default": true,
+            "note": "Base = the engine's committed benchmark export (the series behind its weekly email and factsheet); yfinance only chains returns after the export's last date. One S&P figure on both surfaces by construction (2026-09-06)."},
     "QQQ": {"name": "NASDAQ-100", "label": "NASDAQ-100", "type": "yfinance", "ticker": "QQQ", "color": "#7c3aed"},
     "ACWI": {"name": "MSCI ACWI", "label": "MSCI ACWI", "type": "yfinance", "ticker": "ACWI", "color": "#2563eb"},
     "STI": {"name": "Straits Times Index", "label": "STI (USD)", "type": "yfinance", "ticker": "ES3.SI", "fx": "SGDUSD=X", "color": "#0891b2"},
@@ -41,7 +42,8 @@
     "price_sessions": 0,
     "regime_bdays": 8,
     "strategy_bdays": 12,
-    "note": "Two bases, on purpose. The live NAV (live_track) refreshes daily and is judged in NYSE SESSIONS against the last completed session: price_sessions 0 means the page must carry the session that has closed, and one session behind renders STALE. Tightened from a 4-business-day budget on 2026-08-24 — that budget read 'ok' through the 2026-08-21 miss, and no business-day threshold could have caught it without false-alarming on a cron that slips past midnight UTC. The breadth/regime panel and the strategy-equity backtest regenerate only in the weekly run, so their data trails the live NAV by up to ~1.5 weeks by design — they keep wide business-day budgets. The headline model is extended daily via live_track regardless."
+    "benchmark_sessions": 1,
+    "note": "Three bases, on purpose. The S&P 500 benchmark is judged in NYSE sessions behind the live NAV's OWN as-of (benchmark_sessions 1: one session behind is WARN with the date caveat beside every S&P-relative figure, two is STALE) — added 2026-09-06 after the vendor withheld Friday's SPY bar and the page compared Friday's mark with Thursday's close, silently. The live NAV (live_track) refreshes daily and is judged in NYSE SESSIONS against the last completed session: price_sessions 0 means the page must carry the session that has closed, and one session behind renders STALE. Tightened from a 4-business-day budget on 2026-08-24 — that budget read 'ok' through the 2026-08-21 miss, and no business-day threshold could have caught it without false-alarming on a cron that slips past midnight UTC. The breadth/regime panel and the strategy-equity backtest regenerate only in the weekly run, so their data trails the live NAV by up to ~1.5 weeks by design — they keep wide business-day budgets. The headline model is extended daily via live_track regardless."
   },
   "etf_meta": {
     "EEM":       {"name": "MSCI Emerging Markets",            "sleeve": "TILT", "assetClass": "Equity",      "geo": "Emerging",  "theme": "Broad EM",          "tradeAs": "EEM"},
